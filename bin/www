@@ -7,6 +7,7 @@
 var app = require('../app');
 var debug = require('debug')('subastasplus:server');
 var http = require('http');
+var { attachRealtime } = require('../lib/realtime');
 
 /**
  * Get port from environment and store in Express.
@@ -20,6 +21,9 @@ app.set('port', port);
  */
 
 var server = http.createServer(app);
+
+// WebSocket: salas en vivo
+attachRealtime(server);
 
 /**
  * Listen on provided port, on all network interfaces.
