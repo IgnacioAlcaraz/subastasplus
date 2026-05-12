@@ -23,5 +23,6 @@ node supabase-test.js
 ```
 
 Notes:
+
 - If the `anon` key lacks permissions to read your table, configure Row Level Security (RLS) or test from server using a `service_role` key (do NOT put service_role in client code).
 - For production use, keep keys in environment variables in your hosting/CI.
