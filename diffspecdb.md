@@ -243,19 +243,206 @@ resolvemos en el código.
   query y verifican ownership en `findOwn()` antes de devolver detalle o
   borrar.
 
+## 25. `solicitudes_venta.estado` — CHECK matches spec ✓
+
+- **Spec:** enum `borrador | enviada | en_revision | aceptada | rechazada | en_subasta | vendida | no_vendida`.
+- **DB:** CHECK `chk_estado_solicitud` acepta exactamente esos 8 valores.
+- **Resolución:** ninguna, alineado al spec.
+
+## 26. `solicitudes_venta.tipo` — CHECK matches spec ✓
+
+- **Spec:** enum `arte | antiguedad | joya | vehiculo | mueble | otro`.
+- **DB:** CHECK `chk_tipo_solicitud` con exactamente esos valores.
+- **Resolución:** ninguna.
+
+## 27. `solicitudes_venta.declaracion_propiedad` es `varchar(2)` 'si'/'no'
+
+- **Spec:** `declaracionPropiedad: boolean`.
+- **DB:** `VARCHAR(2)` (sin CHECK observable, pero solo aceptamos 'si'/'no'
+  por convención del resto del schema).
+- **Resolución:**
+  [`lib/solicitud-venta-shape.js`](lib/solicitud-venta-shape.js)
+  mapea boolean ↔ 'si'/'no'. La validación de "declaró sí" se hace en el
+  controller (`declaracionPropiedad !== true` ⇒ 400).
+
+## 28. `solicitudes_venta.cuenta_cobro_tipo` — CHECK ✓
+
+- **Spec:** `CuentaCobroRequest.tipo` enum `nacional | exterior`.
+- **DB:** CHECK `chk_cuenta_tipo` con esos dos valores.
+- **Resolución:** ninguna.
+
+## 29. Fotos de solicitud: misma situación que registro/etapa1
+
+- **Spec:** `imagenes: array<binary>`, mínimo 6.
+- **DB:** tabla aparte `fotos_solicitud_venta(solicitud, foto bytea)`.
+- **Resolución:** aceptamos array de base64 en JSON. Se valida `length >= 6`
+  en el controller y se insertan una por una con
+  `base64ToBytea()` (`\x` hex). Las imágenes en el response están vacías por
+  ahora — falta endpoint para servirlas.
+
+## 30. `seguros.nro_poliza` es PK (varchar), no auto-increment
+
+- **Spec:** `PolizaSeguro.id` con `format: uuid` y `numeroPoliza` separado.
+- **DB:** `seguros.nro_poliza VARCHAR PRIMARY KEY` (no hay `id`).
+- **Resolución:**
+  [`lib/solicitud-venta-shape.js::polizaShape()`](lib/solicitud-venta-shape.js)
+  devuelve `id = numeroPoliza`. El admin (cuando exista el flujo) tiene que
+  asignar a mano el `nro_poliza` al crear el seguro.
+
+## 31. Datos de contacto de la aseguradora: en `seguros_extension`
+
+- **Spec:** `ContactoAseguradora` tiene `telefono`, `email`, `web`, además del
+  `numeroPoliza` y `nombre` (de `seguros.compania`).
+- **DB:** `seguros` tiene `compania, importe, poliza_combinada`. Los datos de
+  contacto están en `seguros_extension(nro_poliza, telefono, email, web)`.
+- **Resolución:** los endpoints `/poliza` y `/contactar-aseguradora` hacen
+  JOIN manual con `seguros_extension`.
+
+## 32. Solicitud sin `producto`/`artista` al crear
+
+- **Spec:** `CrearSolicitudVentaRequest` acepta `nombreArtista`, `fechaObra`,
+  `historia` (especialmente para `tipo=arte`).
+- **DB:** `solicitudes_venta.historia` existe (text); pero `nombre_artista` y
+  `fecha_obra` están en `artistas_piezas`, que requiere un `producto`. Como
+  el producto se crea recién cuando un empleado acepta la solicitud, esos
+  datos no tienen dónde guardarse en `solicitudes_venta`.
+- **Resolución actual:** persistimos `historia` en `solicitudes_venta.historia`.
+  `nombreArtista` y `fechaObra` **se pierden** hasta que el flujo del admin
+  cree el producto y la fila en `artistas_piezas`. Si el TP necesita
+  preservarlos, se podrían volcar al texto de `historia`.
+
+## 33. `cuentaCobro` request vs columnas de solicitudes_venta
+
+- **Spec:** `CuentaCobroRequest` tiene un objeto anidado con
+  `tipo / cbu / banco / titular / swift / iban / pais / moneda`.
+- **DB:** se flattenea en `solicitudes_venta` con columnas
+  `cuenta_cobro_tipo / cuenta_cobro_cbu / cuenta_cobro_swift /
+   cuenta_cobro_iban / cuenta_cobro_pais / cuenta_cobro_moneda`. No hay
+   columnas para `banco` ni `titular` de la cuenta de cobro.
+- **Resolución:** guardamos lo que cabe; `banco` y `titular` se ignoran al
+  persistir. En el response devolvemos `cuentaCobro` como string resumen
+  ("CBU xxx" o "IBAN xxx — USD").
+
+## 34. Compra = `registro_de_subasta` (no hay tabla "compras")
+
+- **Spec:** `CompraDetalle` con `id`, `piezaId`, `medioPagoId`, `metodoEntrega`,
+  `direccionEnvio`, `estado`, etc.
+- **DB:** la compra es un row de `registro_de_subasta` (subasta, duenio,
+  producto, cliente, importe, comision) + `registro_subasta_extension`
+  (metodo_entrega, direccion_envio, costo_envio, estado_pago).
+- **Resolución:** `/compras/:id` mapea desde ambas tablas. **`medioPagoId`
+  no se persiste** (no hay columna). Si el TP lo necesita conservar, hay
+  que agregar una columna `medio_pago` en `registro_de_subasta` o
+  `_extension`.
+
+## 35. Estados de la compra: `estado_pago` vs spec enum
+
+- **Spec:** `CompraDetalle.estado` enum `pendiente_pago | pagada | fondos_insuficientes`.
+- **DB:** `registro_subasta_extension.estado_pago VARCHAR`. Sin
+  registro_subasta_extension creado, lo derivamos como `pendiente_pago`.
+- **Resolución:** controller mapea según `ext.estado_pago`. Cuando no hay
+  extension row → `pendiente_pago`. Valores que usamos: `pagada`,
+  `fondos_insuficientes`. (No probamos CHECK constraint — si lo hay,
+  habrá que ajustar.)
+
+## 36. Fondos insuficientes: lógica de negocio inventada para TP
+
+- **Spec:** define el error 402 `COMPRA_FONDOS_INSUFICIENTES` con creación
+  de multa del 10% pero no detalla en qué casos dispara.
+- **DB:** no hay forma de simular "fondos reales" de una cuenta — solo el
+  `monto_cheque` para cheques certificados.
+- **Resolución:** en el controller solo declaramos fondos insuficientes si
+  el medio elegido es `cheque_certificado` Y su `monto_cheque <
+  importe + comision`. Para los otros tipos, asumimos OK. En producción
+  habría que integrar con pasarela de pago.
+
+## 37. `multas` sin FK a cliente directo
+
+- **Spec:** `Multa.compraId`. La lista "mis multas" está implícita por JWT.
+- **DB:** `multas.registro` → `registro_de_subasta.cliente`.
+- **Resolución:**
+  [`controllers/multas.controller.js`](controllers/multas.controller.js)
+  hace JOIN manual: primero busca todos los `registro_de_subasta.cliente=user`,
+  después filtra `multas` por `registro IN (...)`. Costoso en N requests
+  pero sirve para el TP.
+
+## 38. Multa: plazo vencido se evalúa en runtime
+
+- **Spec:** estado `derivada_justicia` cuando pasaron las 72hs.
+- **DB:** estado es un campo libre, no hay trigger que mueva pendientes a
+  derivadas al pasar el plazo.
+- **Resolución:** cada vez que se intenta `POST /multas/:id/pagar`, si la
+  multa está pendiente y `fecha_limite < now`, el handler hace `UPDATE`
+  + responde 410 `MULTA_PLAZO_VENCIDO`. **Limitación:** una multa vencida
+  no se mueve a `derivada_justicia` hasta que el cliente intente pagarla.
+
+## 39. Notificaciones: `leida` y `tiene_mensajes` son `varchar(2)` 'si'/'no'
+
+- **Spec:** `Notificacion.leida: boolean`, `tieneMensajes: boolean`.
+- **DB:** ambos `VARCHAR` 'si'/'no'.
+- **Resolución:** mapeo en
+  [`controllers/notificaciones.controller.js`](controllers/notificaciones.controller.js).
+  Al abrir una notificación (`GET /:id`) se hace `UPDATE leida='si'`
+  automáticamente. Al enviar un mensaje, marcamos `tiene_mensajes='si'`.
+
+## 40. `mensajes.emisor` — CHECK matches spec ✓
+
+- **Spec:** enum `sistema | usuario`.
+- **DB:** `mensajes.emisor VARCHAR` aceptó `'usuario'` sin error (no probamos
+  exhaustivamente, pero el spec coincide).
+- **Resolución:** los mensajes que crea el endpoint POST siempre tienen
+  `emisor='usuario'`. Los de `sistema` los inserta el backend en otros flujos
+  (cuando se mande p.ej. una notif de puja superada).
+
+## 41. Notificaciones no se generan automáticamente todavía
+
+- **Spec:** las notificaciones de tipo `aprobacion_registro`,
+  `resultado_subasta`, `puja_superada`, etc. son generadas por el sistema.
+- **DB:** simplemente expone CRUD.
+- **Resolución actual:** ningún endpoint del backend genera notificaciones.
+  Hay que agregar inserts en los flujos correspondientes
+  (cuando se aprueba un registro, cuando una puja es superada, cuando una
+  subasta finaliza, etc.). Pendiente.
+
+## 42. Historial: "Participación" = `asistentes`, no tabla aparte
+
+- **Spec:** `Participacion` con `id`, `subastaId`, `cantidadPujas`, `gano`,
+  `montoMaximoPujado`.
+- **DB:** se infiere agrupando: una fila `asistentes` por (cliente, subasta).
+- **Resolución:** `id` de la API = `asistentes.identificador`. Los cálculos
+  (cantidadPujas, montoMaximo, gano) se computan en runtime con queries a
+  `pujos`. Costoso para usuarios con mucho historial; un día convendría una
+  vista materializada o columnas calculadas.
+
+## 43. `HistorialPuja.numero` es el id, no un orden
+
+- **Spec:** `numero` es un integer (sin más definición).
+- **DB:** no hay un "número de orden" explícito; usamos `pujos.identificador`
+  como número. Como las pujas se crean monotónicamente, sirve como orden.
+
+## 44. Métricas: cálculos en runtime
+
+- **Spec:** `Metricas` con totales, porcentajes y participaciones por
+  categoría.
+- **DB:** sin agregados pre-calculados — todo se computa en
+  `GET /historial/metricas`.
+- **Resolución:** múltiples queries por request. Para producción habría que
+  cachear o usar una vista materializada por usuario.
+
 ---
 
-## Pendientes de chequear cuando lleguemos a esos módulos
+## Pendientes de chequear cuando se haga el flujo admin
 
 - [ ] `productos.disponible`, `productos_extension.es_obra_de_arte`,
   `subastas_extension.es_coleccion`, `seguros_extension.*` — ¿qué valores
   aceptan?
-- [ ] `solicitudes_venta.estado` — ¿enum?
-- [ ] `notificaciones.tipo`, `notificaciones.leida`, `notificaciones.tiene_mensajes`
-  — ¿enum / 'si'-'no'?
 - [ ] `items_catalogo_estado.estado` — confirmamos que acepta `'en_subasta'`
   y `'pendiente'`, pero no probamos `'vendida'`.
-- [ ] `multas.estado` — ¿enum?
 - [ ] `registro_subasta_extension.estado_pago` — ¿enum?
+- [ ] `multas.estado` — ¿enum?
+- [ ] `notificaciones.tipo` — ¿CHECK estricto?
 - [ ] Sequence sync — si llegamos a tener problemas con duplicate keys porque
   las tablas con SERIAL tienen filas insertadas a mano fuera del seq.
+- [ ] **Generación automática de notificaciones** desde flujos del backend
+  (registro aprobado, puja superada, subasta finalizada, multa creada,
+  pago confirmado, etc.).
