@@ -1,0 +1,747 @@
+{
+  "info": {
+    "name": "SubastasPlus API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Colección completa del backend de SubastasPlus (API v1)"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/auth/login", "host": ["{{baseUrl}}"], "path": ["v1","auth","login"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@ejemplo.com\",\n  \"password\": \"MiClave123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/auth/logout", "host": ["{{baseUrl}}"], "path": ["v1","auth","logout"] },
+            "body": { "mode": "raw", "raw": "{}" }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/auth/refresh", "host": ["{{baseUrl}}"], "path": ["v1","auth","refresh"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Recuperar Clave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/auth/recuperar-clave", "host": ["{{baseUrl}}"], "path": ["v1","auth","recuperar-clave"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@ejemplo.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verificar Código",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/auth/verificar-codigo", "host": ["{{baseUrl}}"], "path": ["v1","auth","verificar-codigo"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@ejemplo.com\",\n  \"codigo\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Nueva Clave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/auth/nueva-clave", "host": ["{{baseUrl}}"], "path": ["v1","auth","nueva-clave"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"usuario@ejemplo.com\",\n  \"nuevaClave\": \"NuevaClave123\",\n  \"resetToken\": \"<resetToken del paso anterior>\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Registro",
+      "item": [
+        {
+          "name": "Etapa 1 - Datos personales",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/registro/etapa1", "host": ["{{baseUrl}}"], "path": ["v1","registro","etapa1"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nombre\": \"Juan\",\n  \"apellido\": \"Pérez\",\n  \"email\": \"juan.perez@ejemplo.com\",\n  \"domicilioLegal\": \"Av. Corrientes 1234, CABA\",\n  \"paisOrigen\": \"Argentina\",\n  \"dniFrente\": \"data:image/jpeg;base64,<base64>\",\n  \"dniDorso\": \"data:image/jpeg;base64,<base64>\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Etapa 2 - Crear clave",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/registro/etapa2", "host": ["{{baseUrl}}"], "path": ["v1","registro","etapa2"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tokenSeguimiento\": \"tok_<valor>\",\n  \"email\": \"juan.perez@ejemplo.com\",\n  \"clave\": \"MiClave123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verificar Token de Seguimiento",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": { "raw": "{{baseUrl}}/v1/registro/verificar-token", "host": ["{{baseUrl}}"], "path": ["v1","registro","verificar-token"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tokenSeguimiento\": \"tok_<valor>\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Perfil",
+      "item": [
+        {
+          "name": "Obtener Perfil",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/perfil", "host": ["{{baseUrl}}"], "path": ["v1","perfil"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Medios de Pago",
+      "item": [
+        {
+          "name": "Listar",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/medios-pago", "host": ["{{baseUrl}}"], "path": ["v1","medios-pago"] }
+          }
+        },
+        {
+          "name": "Agregar Cuenta Nacional",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/medios-pago/cuenta-nacional", "host": ["{{baseUrl}}"], "path": ["v1","medios-pago","cuenta-nacional"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"banco\": \"Banco Nación\",\n  \"cbu\": \"0110099220000012345678\",\n  \"cuitCuil\": \"20-12345678-9\",\n  \"tipoCuenta\": \"caja_ahorro\",\n  \"titular\": \"Juan Pérez\",\n  \"alias\": \"mi.cuenta.nacion\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Agregar Cuenta Exterior",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/medios-pago/cuenta-exterior", "host": ["{{baseUrl}}"], "path": ["v1","medios-pago","cuenta-exterior"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"banco\": \"Citibank\",\n  \"swift\": \"CITIUS33\",\n  \"iban\": \"US12345678901234567890\",\n  \"pais\": \"Estados Unidos\",\n  \"titular\": \"Juan Pérez\",\n  \"moneda\": \"USD\",\n  \"alias\": \"mi.cuenta.usa\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Agregar Tarjeta",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/medios-pago/tarjeta", "host": ["{{baseUrl}}"], "path": ["v1","medios-pago","tarjeta"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"numero\": \"4111111111111111\",\n  \"titular\": \"JUAN PEREZ\",\n  \"vencimiento\": \"12/27\",\n  \"codigoSeguridad\": \"123\",\n  \"alias\": \"mi.visa\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Agregar Cheque",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/medios-pago/cheque", "host": ["{{baseUrl}}"], "path": ["v1","medios-pago","cheque"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"banco\": \"Banco Galicia\",\n  \"numeroCheque\": \"00012345\",\n  \"monto\": 50000,\n  \"moneda\": \"ARS\",\n  \"fechaEmision\": \"2026-05-13\",\n  \"titular\": \"Juan Pérez\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Detalle",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/medios-pago/:id", "host": ["{{baseUrl}}"], "path": ["v1","medios-pago",":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Eliminar",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/medios-pago/:id", "host": ["{{baseUrl}}"], "path": ["v1","medios-pago",":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subastas",
+      "item": [
+        {
+          "name": "Listar",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/v1/subastas?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1","subastas"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "estado", "value": "", "disabled": true },
+                { "key": "categoria", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Detalle",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/subastas/:id", "host": ["{{baseUrl}}"], "path": ["v1","subastas",":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Catálogo",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/subastas/:id/catalogo", "host": ["{{baseUrl}}"], "path": ["v1","subastas",":id","catalogo"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Ingresar Sala",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/subastas/:id/sala", "host": ["{{baseUrl}}"], "path": ["v1","subastas",":id","sala"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Realizar Puja",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/subastas/:id/pujas", "host": ["{{baseUrl}}"], "path": ["v1","subastas",":id","pujas"], "variable": [{ "key": "id", "value": "1" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monto\": 15000\n}"
+            }
+          }
+        },
+        {
+          "name": "Salir de Sala",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/subastas/:id/sala/salir", "host": ["{{baseUrl}}"], "path": ["v1","subastas",":id","sala","salir"], "variable": [{ "key": "id", "value": "1" }] },
+            "body": { "mode": "raw", "raw": "{}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Piezas",
+      "item": [
+        {
+          "name": "Detalle de Pieza",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/piezas/:id", "host": ["{{baseUrl}}"], "path": ["v1","piezas",":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Foto de Pieza",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/v1/piezas/:id/fotos/:n", "host": ["{{baseUrl}}"], "path": ["v1","piezas",":id","fotos",":n"], "variable": [{ "key": "id", "value": "1" }, { "key": "n", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Compras",
+      "item": [
+        {
+          "name": "Listar",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/v1/compras?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1","compras"],
+              "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }]
+            }
+          }
+        },
+        {
+          "name": "Detalle",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/compras/:id", "host": ["{{baseUrl}}"], "path": ["v1","compras",":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Pagar Compra",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/compras/:id/pagar", "host": ["{{baseUrl}}"], "path": ["v1","compras",":id","pagar"], "variable": [{ "key": "id", "value": "1" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"medioPagoId\": \"1\",\n  \"metodoEntrega\": \"envio\",\n  \"direccionEnvio\": \"Av. Santa Fe 1234, CABA\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Multas",
+      "item": [
+        {
+          "name": "Listar",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/multas", "host": ["{{baseUrl}}"], "path": ["v1","multas"] }
+          }
+        },
+        {
+          "name": "Pagar Multa",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/multas/:id/pagar", "host": ["{{baseUrl}}"], "path": ["v1","multas",":id","pagar"], "variable": [{ "key": "id", "value": "1" }] },
+            "body": { "mode": "raw", "raw": "{}" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Solicitudes de Venta",
+      "item": [
+        {
+          "name": "Listar",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/v1/solicitudes-venta?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1","solicitudes-venta"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "estado", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Crear Solicitud",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/solicitudes-venta", "host": ["{{baseUrl}}"], "path": ["v1","solicitudes-venta"] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tipo\": \"obra_arte\",\n  \"descripcion\": \"Óleo sobre tela, 80x60cm, marco dorado\",\n  \"imagenes\": [\n    \"data:image/jpeg;base64,<base64_1>\",\n    \"data:image/jpeg;base64,<base64_2>\",\n    \"data:image/jpeg;base64,<base64_3>\",\n    \"data:image/jpeg;base64,<base64_4>\",\n    \"data:image/jpeg;base64,<base64_5>\",\n    \"data:image/jpeg;base64,<base64_6>\"\n  ],\n  \"historia\": \"Adquirida en 1985 en galería reconocida\",\n  \"nombreArtista\": \"Carlos García\",\n  \"fechaObra\": \"1975\",\n  \"declaracionPropiedad\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Detalle",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/solicitudes-venta/:id", "host": ["{{baseUrl}}"], "path": ["v1","solicitudes-venta",":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Aceptar Condiciones",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/solicitudes-venta/:id/aceptar-condiciones", "host": ["{{baseUrl}}"], "path": ["v1","solicitudes-venta",":id","aceptar-condiciones"], "variable": [{ "key": "id", "value": "1" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aceptaValorBase\": true,\n  \"aceptaComisiones\": true,\n  \"cuentaCobro\": {\n    \"tipo\": \"nacional\",\n    \"banco\": \"Banco Nación\",\n    \"titular\": \"Juan Pérez\",\n    \"cbu\": \"0110099220000012345678\"\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Ver Póliza",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/solicitudes-venta/:id/poliza", "host": ["{{baseUrl}}"], "path": ["v1","solicitudes-venta",":id","poliza"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Contactar Aseguradora",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/solicitudes-venta/:id/contactar-aseguradora", "host": ["{{baseUrl}}"], "path": ["v1","solicitudes-venta",":id","contactar-aseguradora"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Foto de Solicitud",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/solicitudes-venta/:id/fotos/:n", "host": ["{{baseUrl}}"], "path": ["v1","solicitudes-venta",":id","fotos",":n"], "variable": [{ "key": "id", "value": "1" }, { "key": "n", "value": "1" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notificaciones",
+      "item": [
+        {
+          "name": "Listar",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/notificaciones", "host": ["{{baseUrl}}"], "path": ["v1","notificaciones"] }
+          }
+        },
+        {
+          "name": "Detalle",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/notificaciones/:id", "host": ["{{baseUrl}}"], "path": ["v1","notificaciones",":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Listar Mensajes",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/notificaciones/:id/mensajes", "host": ["{{baseUrl}}"], "path": ["v1","notificaciones",":id","mensajes"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Enviar Mensaje",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/v1/notificaciones/:id/mensajes", "host": ["{{baseUrl}}"], "path": ["v1","notificaciones",":id","mensajes"], "variable": [{ "key": "id", "value": "1" }] },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contenido\": \"Hola, tengo una consulta sobre esta notificación.\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Historial",
+      "item": [
+        {
+          "name": "Participaciones",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/historial/participaciones", "host": ["{{baseUrl}}"], "path": ["v1","historial","participaciones"] }
+          }
+        },
+        {
+          "name": "Detalle de Participación",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/historial/participaciones/:id", "host": ["{{baseUrl}}"], "path": ["v1","historial","participaciones",":id"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Pujas de Participación",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/historial/participaciones/:id/pujas", "host": ["{{baseUrl}}"], "path": ["v1","historial","participaciones",":id","pujas"], "variable": [{ "key": "id", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Ventas",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/historial/ventas", "host": ["{{baseUrl}}"], "path": ["v1","historial","ventas"] }
+          }
+        },
+        {
+          "name": "Métricas",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": { "raw": "{{baseUrl}}/v1/historial/metricas", "host": ["{{baseUrl}}"], "path": ["v1","historial","metricas"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Clientes",
+          "item": [
+            {
+              "name": "Aprobar Cliente",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/clientes/:id/aprobar", "host": ["{{baseUrl}}"], "path": ["v1","admin","clientes",":id","aprobar"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": { "mode": "raw", "raw": "{}" }
+              }
+            },
+            {
+              "name": "Rechazar Cliente",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/clientes/:id/rechazar", "host": ["{{baseUrl}}"], "path": ["v1","admin","clientes",":id","rechazar"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"motivo\": \"Documentación inválida\"\n}"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Medios de Pago",
+          "item": [
+            {
+              "name": "Verificar Medio de Pago",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/medios-pago/:id/verificar", "host": ["{{baseUrl}}"], "path": ["v1","admin","medios-pago",":id","verificar"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": { "mode": "raw", "raw": "{}" }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Solicitudes de Venta",
+          "item": [
+            {
+              "name": "Revisar Solicitud",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/solicitudes-venta/:id/revisar", "host": ["{{baseUrl}}"], "path": ["v1","admin","solicitudes-venta",":id","revisar"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": { "mode": "raw", "raw": "{}" }
+              }
+            },
+            {
+              "name": "Aceptar Solicitud",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/solicitudes-venta/:id/aceptar", "host": ["{{baseUrl}}"], "path": ["v1","admin","solicitudes-venta",":id","aceptar"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"valorBase\": 50000,\n  \"comisiones\": 10\n}"
+                }
+              }
+            },
+            {
+              "name": "Rechazar Solicitud",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/solicitudes-venta/:id/rechazar", "host": ["{{baseUrl}}"], "path": ["v1","admin","solicitudes-venta",":id","rechazar"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"motivo\": \"El bien no cumple con los criterios de subasta\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Asignar a Subasta",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/solicitudes-venta/:id/asignar-subasta", "host": ["{{baseUrl}}"], "path": ["v1","admin","solicitudes-venta",":id","asignar-subasta"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"subastaId\": 1\n}"
+                }
+              }
+            },
+            {
+              "name": "Crear Seguro",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/solicitudes-venta/:id/seguro", "host": ["{{baseUrl}}"], "path": ["v1","admin","solicitudes-venta",":id","seguro"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": { "mode": "raw", "raw": "{}" }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Subastas",
+          "item": [
+            {
+              "name": "Crear Subasta",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/subastas", "host": ["{{baseUrl}}"], "path": ["v1","admin","subastas"] },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fecha\": \"2026-07-15\",\n  \"hora\": \"18:00:00\",\n  \"categoria\": \"oro\",\n  \"ubicacion\": \"Palais de Glace, CABA\",\n  \"subastadorId\": 1,\n  \"moneda\": \"ARS\",\n  \"esColeccion\": false\n}"
+                }
+              }
+            },
+            {
+              "name": "Actualizar Subasta",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/subastas/:id", "host": ["{{baseUrl}}"], "path": ["v1","admin","subastas",":id"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"hora\": \"19:00:00\",\n  \"ubicacion\": \"Centro Cultural Recoleta\"\n}"
+                }
+              }
+            },
+            {
+              "name": "Agregar Item",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/v1/admin/subastas/:id/items", "host": ["{{baseUrl}}"], "path": ["v1","admin","subastas",":id","items"], "variable": [{ "key": "id", "value": "1" }] },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"productoId\": 5,\n  \"precioBase\": 20000,\n  \"cantidadElementos\": 1\n}"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

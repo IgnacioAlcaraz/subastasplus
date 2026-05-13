@@ -20,6 +20,7 @@ var multasRouter = require("./routes/multas");
 var solicitudesVentaRouter = require("./routes/solicitudes-venta");
 var notificacionesRouter = require("./routes/notificaciones");
 var historialRouter = require("./routes/historial");
+var adminRouter = require("./routes/admin");
 
 var { notFound, errorHandler } = require("./middleware/error");
 
@@ -52,6 +53,7 @@ app.use("/v1/multas", multasRouter);
 app.use("/v1/solicitudes-venta", solicitudesVentaRouter);
 app.use("/v1/notificaciones", notificacionesRouter);
 app.use("/v1/historial", historialRouter);
+app.use("/v1/admin", adminRouter);
 
 // 404 + error handler
 app.use(notFound);
