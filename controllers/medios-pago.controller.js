@@ -156,6 +156,7 @@ exports.agregarTarjeta = asyncHandler(async (req, res) => {
     verificado: "no",
     alias: req.body.alias || null,
     titular,
+    vencimiento,
     ultimos_digitos: numStr.slice(-4),
   });
   res.status(201).json(medioPagoShape(row));

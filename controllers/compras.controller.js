@@ -8,6 +8,7 @@ const MediosPago = require("../models/medios_pago");
 const Multas = require("../models/multas");
 const HttpError = require("../lib/http-error");
 const { paginate } = require("../lib/subasta-shape");
+const { crearNotificacion } = require("../lib/notificaciones-helper");
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -40,7 +41,7 @@ async function compraShape(row) {
     costoEnvio,
     total,
     moneda: subExt?.moneda || "ARS",
-    medioPagoId: null, // no se guarda en DB; queda null
+    medioPagoId: ext?.medio_pago ? String(ext.medio_pago) : null,
     metodoEntrega: ext?.metodo_entrega || null,
     direccionEnvio: ext?.direccion_envio || null,
     estado: estadoApi,
@@ -121,7 +122,9 @@ exports.pagar = asyncHandler(async (req, res) => {
     const montoMulta = Math.round(importe * 0.1);
     const fechaLimite = new Date(Date.now() + 72 * 3600 * 1000).toISOString();
     const subastaExt = await SubastasExtension.findOne({ subasta: row.subasta });
-    const moneda = subastaExt?.moneda || "ARS";
+    // chk_moneda_multa solo acepta 'ARS' o 'USD'; EUR/GBP de subastas internacionales no aplican.
+    const monedaRaw = subastaExt?.moneda || "ARS";
+    const moneda = ["ARS", "USD"].includes(monedaRaw) ? monedaRaw : "ARS";
     const multa = await Multas.create({
       registro: row.identificador,
       monto_original: importe,
@@ -136,6 +139,7 @@ exports.pagar = asyncHandler(async (req, res) => {
     if (ext) {
       await RegistroSubastaExtension.update(row.identificador, {
         estado_pago: "fondos_insuficientes",
+        medio_pago: medio.identificador,
       });
     } else {
       await RegistroSubastaExtension.create({
@@ -143,8 +147,15 @@ exports.pagar = asyncHandler(async (req, res) => {
         estado_pago: "fondos_insuficientes",
         metodo_entrega: metodoEntrega,
         direccion_envio: direccionEnvio || null,
+        medio_pago: medio.identificador,
       });
     }
+    await crearNotificacion(req.user.sub, {
+      tipo: "multa",
+      titulo: "Fondos insuficientes — multa generada",
+      mensaje: `Se generó una multa de $${montoMulta} por fondos insuficientes. Tenés 72 horas para pagarla antes de que sea derivada a la justicia.`,
+      accionUrl: `/multas/${multa.identificador}`,
+    });
     throw new HttpError(
       402,
       "COMPRA_FONDOS_INSUFICIENTES",
@@ -176,6 +187,7 @@ exports.pagar = asyncHandler(async (req, res) => {
       direccion_envio: direccionEnvio || null,
       costo_envio: costoEnvio,
       estado_pago: "pagada",
+      medio_pago: medio.identificador,
     });
   } else {
     await RegistroSubastaExtension.create({
@@ -184,8 +196,16 @@ exports.pagar = asyncHandler(async (req, res) => {
       direccion_envio: direccionEnvio || null,
       costo_envio: costoEnvio,
       estado_pago: "pagada",
+      medio_pago: medio.identificador,
     });
   }
+
+  await crearNotificacion(req.user.sub, {
+    tipo: "pago",
+    titulo: "Pago confirmado",
+    mensaje: "Tu pago fue procesado exitosamente. Podés ver los detalles de tu compra.",
+    accionUrl: `/compras/${row.identificador}`,
+  });
 
   res.json(await compraShape(row));
 });

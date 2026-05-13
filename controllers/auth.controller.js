@@ -2,23 +2,21 @@ const ClientesAcceso = require("../models/clientes_acceso");
 const Clientes = require("../models/clientes");
 const Personas = require("../models/personas");
 const MediosPago = require("../models/medios_pago");
-const Multas = require("../models/multas");
 const passwords = require("../lib/passwords");
 const tokens = require("../lib/tokens");
 const HttpError = require("../lib/http-error");
 const { usuarioResumen } = require("../lib/usuario-shape");
+const { tieneMultaActiva } = require("../lib/multas-helper");
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
 
 async function buildLoginResponse(cliente, persona, acceso) {
-  const cantidadMediosPago = await MediosPago.count({ cliente: cliente.identificador });
-  const multasActivas = await Multas.count({
-    registro: undefined, // placeholder, ver abajo
-  }).catch(() => 0);
-  // No tenemos FK directa cliente→multa; lo dejamos en false por ahora.
-  const tieneMultaActiva = false;
+  const [cantidadMediosPago, tieneMulta] = await Promise.all([
+    MediosPago.count({ cliente: cliente.identificador }),
+    tieneMultaActiva(cliente.identificador),
+  ]);
 
   const payload = {
     sub: cliente.identificador,
@@ -39,7 +37,7 @@ async function buildLoginResponse(cliente, persona, acceso) {
       cliente,
       acceso,
       cantidadMediosPago,
-      tieneMultaActiva,
+      tieneMultaActiva: tieneMulta,
     }),
   };
 }

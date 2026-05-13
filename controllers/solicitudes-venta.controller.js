@@ -18,6 +18,8 @@ const {
   subastaResumen,
   paginate,
 } = require("../lib/subasta-shape");
+const { cantidadPiezasDeSubasta } = require("../lib/subastas-helper");
+const { crearNotificacion } = require("../lib/notificaciones-helper");
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -35,11 +37,12 @@ async function buildSubastaAsignada(subastaId) {
     const persona = await Personas.findById(sub.subastador);
     rematadorNombre = persona?.nombre || null;
   }
+  const cantidadPiezas = await cantidadPiezasDeSubasta(sub.identificador);
   return subastaResumen({
     subasta: sub,
     ext,
     rematadorNombre,
-    cantidadPiezas: 0,
+    cantidadPiezas,
   });
 }
 
@@ -66,11 +69,13 @@ async function findOwn(id, clienteId) {
 }
 
 async function fullShape(row) {
-  const [subastaAsignada, poliza] = await Promise.all([
+  const [subastaAsignada, poliza, fotosResult] = await Promise.all([
     buildSubastaAsignada(row.subasta_asignada),
     buildPoliza(row.seguro),
+    supabase.from("fotos_solicitud_venta").select("*", { count: "exact", head: true }).eq("solicitud", row.identificador),
   ]);
-  return solicitudShape({ row, subastaAsignada, poliza });
+  const fotosCount = fotosResult.count || 0;
+  return solicitudShape({ row, subastaAsignada, poliza, fotosCount });
 }
 
 // GET /solicitudes-venta
@@ -104,6 +109,8 @@ exports.crear = asyncHandler(async (req, res) => {
     descripcion,
     imagenes,
     historia,
+    nombreArtista,
+    fechaObra,
     declaracionPropiedad,
   } = req.body || {};
 
@@ -140,6 +147,8 @@ exports.crear = asyncHandler(async (req, res) => {
     tipo,
     descripcion: String(descripcion).slice(0, 4000),
     historia: historia ? String(historia).slice(0, 4000) : null,
+    nombre_artista: nombreArtista ? String(nombreArtista).slice(0, 200) : null,
+    fecha_obra: fechaObra ? String(fechaObra).slice(0, 50) : null,
     declaracion_propiedad: "si",
     estado: "enviada",
     fecha_creacion: new Date().toISOString(),
@@ -213,11 +222,20 @@ exports.aceptarCondiciones = asyncHandler(async (req, res) => {
   const updated = await SolicitudesVenta.update(row.identificador, {
     estado: "aceptada",
     cuenta_cobro_tipo: cuentaCobro.tipo,
+    cuenta_cobro_banco: cuentaCobro.banco || null,
+    cuenta_cobro_titular: cuentaCobro.titular || null,
     cuenta_cobro_cbu: cuentaCobro.cbu || null,
     cuenta_cobro_swift: cuentaCobro.swift || null,
     cuenta_cobro_iban: cuentaCobro.iban || null,
     cuenta_cobro_pais: cuentaCobro.pais || null,
     cuenta_cobro_moneda: cuentaCobro.moneda || null,
+  });
+
+  await crearNotificacion(req.user.sub, {
+    tipo: "solicitud_venta",
+    titulo: "Condiciones aceptadas",
+    mensaje: "Aceptaste las condiciones de venta. Tu bien quedará disponible para ser asignado a una subasta.",
+    accionUrl: `/solicitudes-venta/${row.identificador}`,
   });
 
   res.json(await fullShape(updated));

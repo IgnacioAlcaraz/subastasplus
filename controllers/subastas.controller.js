@@ -21,6 +21,7 @@ const {
   estadoApiToDb,
   paginate,
 } = require("../lib/subasta-shape");
+const { cantidadPiezasDeSubasta } = require("../lib/subastas-helper");
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
@@ -30,21 +31,6 @@ async function rematadorNombrePorSubasta(subastadorId) {
   // subastadores.identificador es FK a personas
   const persona = await Personas.findById(subastadorId);
   return persona?.nombre || null;
-}
-
-async function cantidadPiezasDeSubasta(subastaId) {
-  // catalogos.subasta -> items_catalogo.catalogo
-  const { data: cats } = await supabase
-    .from("catalogos")
-    .select("identificador")
-    .eq("subasta", subastaId);
-  const ids = (cats || []).map((c) => c.identificador);
-  if (!ids.length) return 0;
-  const { count } = await supabase
-    .from("items_catalogo")
-    .select("*", { count: "exact", head: true })
-    .in("catalogo", ids);
-  return count || 0;
 }
 
 // GET /subastas
@@ -178,13 +164,15 @@ exports.detallePieza = asyncHandler(async (req, res) => {
   if (!item) {
     throw new HttpError(404, "PIEZA_NO_ENCONTRADA", "La pieza solicitada no existe en el catálogo.");
   }
-  const [producto, prodExt, estadoItem, artista, catalogo] = await Promise.all([
+  const [producto, prodExt, estadoItem, artista, catalogo, fotosResult] = await Promise.all([
     Productos.findById(item.producto),
     ProductosExtension.findOne({ producto: item.producto }),
     ItemsCatalogoEstado.findOne({ item: item.identificador }),
     ArtistasPiezas.findOne({ producto: item.producto }),
     Catalogos.findById(item.catalogo),
+    supabase.from("fotos").select("*", { count: "exact", head: true }).eq("producto", item.producto),
   ]);
+  const fotosCount = fotosResult.count || 0;
 
   let duenioNombre = null;
   if (producto?.duenio) {
@@ -220,6 +208,7 @@ exports.detallePieza = asyncHandler(async (req, res) => {
       duenioNombre,
       artista,
       subastaAsignada,
+      fotosCount,
     }),
   );
 });
@@ -234,6 +223,7 @@ const Pujos = require("../models/pujos");
 const PujosExtension = require("../models/pujos_extension");
 const { puedeEntrarPorCategoria, pujaSinMaximo } = require("../lib/categoria");
 const realtime = require("../lib/realtime");
+const { crearNotificacion } = require("../lib/notificaciones-helper");
 
 async function piezaEnSubasta(subastaId) {
   const { data: cats } = await supabase
@@ -444,6 +434,25 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
       `El monto supera el máximo permitido de ${pujaMaxima}.`,
       { montoOfertado: monto, montoMaximo: pujaMaxima },
     );
+  }
+
+  // Notificar al postor cuya puja va a ser superada
+  const { data: pujoAnterior } = await supabase
+    .from("pujos")
+    .select("*")
+    .eq("item", piezaCur.item.identificador)
+    .eq("ganador", "si")
+    .maybeSingle();
+  if (pujoAnterior && pujoAnterior.asistente !== asistente.identificador) {
+    const asistenteAnterior = await Asistentes.findById(pujoAnterior.asistente);
+    if (asistenteAnterior) {
+      await crearNotificacion(asistenteAnterior.cliente, {
+        tipo: "puja_superada",
+        titulo: "Tu puja fue superada",
+        mensaje: `Alguien ofertó $${monto} por la pieza. Podés volver a pujar para ganar.`,
+        accionUrl: `/subastas/${subastaId}/sala`,
+      });
+    }
   }
 
   // Marcar las pujas anteriores ganadoras como 'no'

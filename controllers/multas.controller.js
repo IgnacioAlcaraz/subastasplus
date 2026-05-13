@@ -3,6 +3,7 @@ const Multas = require("../models/multas");
 const RegistroDeSubasta = require("../models/registro_de_subasta");
 const MediosPago = require("../models/medios_pago");
 const HttpError = require("../lib/http-error");
+const { crearNotificacion } = require("../lib/notificaciones-helper");
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -60,6 +61,11 @@ exports.pagar = asyncHandler(async (req, res) => {
   // Plazo vencido → derivar a justicia
   if (multa.estado === "pendiente" && multa.fecha_limite && new Date(multa.fecha_limite) < new Date()) {
     await Multas.update(multa.identificador, { estado: "derivada_justicia" });
+    await crearNotificacion(req.user.sub, {
+      tipo: "multa",
+      titulo: "Multa derivada a la justicia",
+      mensaje: "El plazo de 72 horas venció. Tu caso fue derivado a la justicia y tu cuenta fue bloqueada permanentemente.",
+    });
     throw new HttpError(
       410,
       "MULTA_PLAZO_VENCIDO",
@@ -98,6 +104,11 @@ exports.pagar = asyncHandler(async (req, res) => {
   const updated = await Multas.update(multa.identificador, {
     estado: "pagada",
     medio_pago_cobro: medio.identificador,
+  });
+  await crearNotificacion(req.user.sub, {
+    tipo: "multa",
+    titulo: "Multa pagada",
+    mensaje: `Tu multa de $${multa.monto_multa} fue pagada exitosamente. Tu cuenta está al día.`,
   });
   res.json(multaShape(updated));
 });
