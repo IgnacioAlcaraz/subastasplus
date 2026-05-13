@@ -224,6 +224,7 @@ const PujosExtension = require("../models/pujos_extension");
 const { puedeEntrarPorCategoria, pujaSinMaximo } = require("../lib/categoria");
 const realtime = require("../lib/realtime");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
+const { multaPendienteData } = require("../lib/multas-helper");
 
 async function piezaEnSubasta(subastaId) {
   const { data: cats } = await supabase
@@ -303,7 +304,18 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
     );
   }
 
-  // 3) No estar conectado a otra subasta
+  // 3) Multa pendiente
+  const multaPend = await multaPendienteData(cliente.identificador);
+  if (multaPend) {
+    throw new HttpError(
+      403,
+      "SALA_MULTA_PENDIENTE",
+      "Tenés una multa pendiente de pago. Aboná la multa para poder participar.",
+      { montoMulta: Number(multaPend.monto_multa) },
+    );
+  }
+
+  // 4) No estar conectado a otra subasta
   const { data: misAsistencias } = await supabase
     .from("asistentes")
     .select("*")
@@ -434,6 +446,43 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
       `El monto supera el máximo permitido de ${pujaMaxima}.`,
       { montoOfertado: monto, montoMaximo: pujaMaxima },
     );
+  }
+
+  // Validar límite del cheque certificado como garantía.
+  // Las compras no pagadas no pueden superar el monto del cheque.
+  const { data: cheque } = await supabase
+    .from("medios_pago")
+    .select("monto_cheque")
+    .eq("cliente", req.user.sub)
+    .eq("tipo", "cheque_certificado")
+    .eq("verificado", "si")
+    .limit(1)
+    .maybeSingle();
+  if (cheque) {
+    const montoCheque = Number(cheque.monto_cheque || 0);
+    const { data: regs } = await supabase
+      .from("registro_de_subasta")
+      .select("identificador, importe, comision")
+      .eq("cliente", req.user.sub);
+    let comprometido = 0;
+    for (const r of regs || []) {
+      const { data: ext } = await supabase
+        .from("registro_subasta_extension")
+        .select("estado_pago")
+        .eq("registro", r.identificador)
+        .maybeSingle();
+      if (!ext || ext.estado_pago !== "pagada") {
+        comprometido += Number(r.importe || 0) + Number(r.comision || 0);
+      }
+    }
+    if (comprometido + Number(monto) > montoCheque) {
+      throw new HttpError(
+        400,
+        "PUJA_FONDOS_CHEQUE_INSUFICIENTES",
+        "Tus compras superan el monto de tu cheque certificado. No podés seguir pujando con esta garantía.",
+        { montoCheque, montoComprometido: comprometido },
+      );
+    }
   }
 
   // Notificar al postor cuya puja va a ser superada
