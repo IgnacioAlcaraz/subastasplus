@@ -21,6 +21,7 @@ var solicitudesVentaRouter = require("./routes/solicitudes-venta");
 var notificacionesRouter = require("./routes/notificaciones");
 var historialRouter = require("./routes/historial");
 var adminRouter = require("./routes/admin");
+var paisesRouter = require("./routes/paises");
 
 var { notFound, errorHandler } = require("./middleware/error");
 
@@ -54,6 +55,7 @@ app.use("/v1/solicitudes-venta", solicitudesVentaRouter);
 app.use("/v1/notificaciones", notificacionesRouter);
 app.use("/v1/historial", historialRouter);
 app.use("/v1/admin", adminRouter);
+app.use("/v1/paises", paisesRouter);
 
 // 404 + error handler
 app.use(notFound);

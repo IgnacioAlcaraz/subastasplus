@@ -220,7 +220,7 @@ exports.verificarToken = asyncHandler(async (req, res) => {
     return res.json({ estado: "pendiente_aprobacion", email: null, nombre });
   }
   if (!acceso.password_hash) {
-    return res.json({ estado: "requiere_clave", email: acceso.email, nombre });
+    return res.json({ estado: "requiere_clave", email: acceso.email, nombre, categoria: cliente.categoria });
   }
   return res.json({ estado: "ya_activo", email: acceso.email, nombre: null });
 });

@@ -1,12 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { verificarToken } from '../api/registro';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  const [status, setStatus] = useState('loading');
   const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [tokenSeguimiento, setTokenSeguimiento] = useState(null);
+  const [pendingData, setPendingData] = useState(null);
 
   useEffect(() => {
     restoreSession();
@@ -16,21 +19,58 @@ export function AuthProvider({ children }) {
     try {
       const savedToken = await AsyncStorage.getItem('token');
       const savedUser = await AsyncStorage.getItem('user');
+
       if (savedToken) {
         setToken(savedToken);
         setUser(savedUser ? JSON.parse(savedUser) : null);
+        setStatus('authenticated');
+        return;
       }
+
+      const savedTokenSeg = await AsyncStorage.getItem('tokenSeguimiento');
+      if (savedTokenSeg) {
+        try {
+          const result = await verificarToken(savedTokenSeg);
+          if (result.estado === 'pendiente_aprobacion') {
+            setTokenSeguimiento(savedTokenSeg);
+            setStatus('pending');
+          } else if (result.estado === 'requiere_clave') {
+            setTokenSeguimiento(savedTokenSeg);
+            setPendingData({ email: result.email, nombre: result.nombre, categoria: result.categoria });
+            setStatus('requires_clave');
+          } else if (result.estado === 'ya_activo') {
+            await AsyncStorage.removeItem('tokenSeguimiento');
+            setStatus('unauthenticated');
+          }
+        } catch (_) {
+          // Error de red: mantener pending para no perder el token
+          setTokenSeguimiento(savedTokenSeg);
+          setStatus('pending');
+        }
+        return;
+      }
+
+      setStatus('unauthenticated');
     } catch (_) {
-    } finally {
-      setLoading(false);
+      setStatus('unauthenticated');
     }
   }
 
   async function login(tokenValue, userData) {
     await AsyncStorage.setItem('token', tokenValue);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
+    await AsyncStorage.removeItem('tokenSeguimiento');
     setToken(tokenValue);
     setUser(userData);
+    setTokenSeguimiento(null);
+    setPendingData(null);
+    setStatus('authenticated');
+  }
+
+  async function savePendingRegistration(tokenSeg) {
+    await AsyncStorage.setItem('tokenSeguimiento', tokenSeg);
+    setTokenSeguimiento(tokenSeg);
+    setStatus('pending');
   }
 
   async function logout() {
@@ -38,10 +78,21 @@ export function AuthProvider({ children }) {
     await AsyncStorage.removeItem('user');
     setToken(null);
     setUser(null);
+    setStatus('unauthenticated');
   }
 
   return (
-    <AuthContext.Provider value={{ token, user, loading, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{
+      status,
+      token,
+      user,
+      tokenSeguimiento,
+      pendingData,
+      login,
+      logout,
+      savePendingRegistration,
+      isAuthenticated: status === 'authenticated',
+    }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,7 +1,9 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
-const BASE_URL = 'http://10.0.2.2:3000'; // Android emulator → localhost; change for device/prod
+const devHost = Constants.expoConfig?.hostUri?.split(':')[0] ?? 'localhost';
+const BASE_URL = `http://${devHost}:3000/v1`;
 
 const client = axios.create({
   baseURL: BASE_URL,
