@@ -1,0 +1,13 @@
+{
+  "name": "subastasplus-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "concurrently --names \"BACK,FRONT\" --prefix-colors \"blue,green\" --restart-tries 10 --restart-after 3000 \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:backend": "npm start --prefix backend",
+    "start:frontend": "cd frontend/subastasplus && npx expo start --tunnel"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
