@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 
 const devHost = Constants.expoConfig?.hostUri?.split(':')[0] ?? 'localhost';
 const BASE_URL = `http://${devHost}:3000/v1`;
+export const SERVER_URL = `http://${devHost}:3000`;
 
 const client = axios.create({
   baseURL: BASE_URL,

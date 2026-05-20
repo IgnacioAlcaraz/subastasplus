@@ -120,8 +120,16 @@ Stack sin header. Pantallas:
 ### `src/navigation/AppNavigator.js`
 Tab navigator. Pantallas:
 - `Home` → `HomeScreen`
-- `Auctions` → `AuctionsScreen`
+- `Auctions` → `AuctionsNavigator` (stack interno)
+- `Sell` → `SellScreen`
 - `Profile` → `ProfileScreen`
+
+### `src/navigation/AuctionsNavigator.js`
+Stack navigator dentro del tab Subastas. Permite navegar al detalle sin perder el tab bar.
+- `AuctionsList` → `AuctionsScreen`
+- `AuctionDetail` → `AuctionDetailScreen`
+- `Catalog` → `CatalogScreen`
+- `PieceDetail` → `PieceDetailScreen`
 
 ---
 
@@ -153,6 +161,31 @@ Instancia de axios configurada con:
 | Función | Método | Endpoint |
 |---|---|---|
 | `getPaises()` | GET | `/paises` |
+
+### `src/api/perfil.js`
+| Función | Método | Endpoint |
+|---|---|---|
+| `getPerfil()` | GET | `/perfil` |
+
+### `src/api/mediosPago.js`
+| Función | Método | Endpoint |
+|---|---|---|
+| `getMediosPago()` | GET | `/medios-pago` |
+
+### `src/api/client.js`
+Exporta también `SERVER_URL` (`http://<host>:3000`) para construir URLs de imágenes sin el prefijo `/v1`.
+
+### `src/api/subastas.js`
+| Función | Método | Endpoint |
+|---|---|---|
+| `getSubastas(estado, page)` | GET | `/subastas?estado=<estado>&page=<page>` |
+| `getSubastaById(id)` | GET | `/subastas/:id` |
+| `getCatalogo(subastaId, page)` | GET | `/subastas/:id/catalogo` |
+
+### `src/api/piezas.js`
+| Función | Método | Endpoint |
+|---|---|---|
+| `getPiezaById(id)` | GET | `/piezas/:id` |
 
 ---
 
@@ -233,3 +266,49 @@ Devuelve todos los países de la tabla `paises`. Sin autenticación requerida.
 
 ### Modificaciones al backend existente
 - `registro.controller.js` — `verificarToken` ahora devuelve `categoria` cuando el estado es `requiere_clave`
+
+---
+
+## Pantallas implementadas — app autenticada
+
+### `src/screens/home/HomeScreen.js`
+Endpoints: `GET /perfil`, `GET /medios-pago`, `GET /subastas?estado=en_vivo`, `GET /subastas?estado=programada`
+
+- Header con fondo `primaryDark`: saludo con nombre del usuario, badges de categoría y cantidad de medios, campana de notificaciones
+- Sección "En vivo ahora": `FlatList` horizontal de subastas activas, card con título, piezas, categoría, badge de moneda y botón Entrar
+- Sección "Próximas": `FlatList` horizontal de subastas programadas con imagen placeholder, fecha y título
+- Los 4 endpoints se llaman en paralelo con `Promise.all` al montar la pantalla
+
+### `src/screens/auctions/AuctionsScreen.js`
+Endpoints: `GET /subastas?estado=en_vivo`, `GET /subastas?estado=finalizada`
+
+- 3 tabs: En vivo / Programadas / Finalizadas
+- Carga todas las `abierta` y todas las `finalizada` al montar, filtra en frontend por `item.estado`
+- `CardSubasta` como componente interno: muestra badge EN VIVO o fecha, título, piezas, moneda, botón Entrar
+- Botón Entrar navega a `AuctionDetail` pasando `id`
+
+### `src/screens/auctions/AuctionDetailScreen.js`
+Endpoint: `GET /subastas/:id`
+
+- Recibe `id` por `route.params`
+- Muestra título, badges de categoría y moneda, tabla de info (fecha, hora, ubicación, rematador)
+- `fecha` y `hora` se parsean del ISO timestamp que devuelve el backend
+- Botón "Ver catálogo" conectado → navega a `Catalog` pasando `subastaId` y `moneda`
+- Botón "Entrar a subasta" pendiente de conectar
+
+### `src/screens/auctions/CatalogScreen.js`
+Endpoint: `GET /subastas/:id/catalogo`
+
+- Recibe `subastaId` y `moneda` por `route.params`
+- Buscador en frontend filtra por descripción o número de ítem
+- Lista de cards con imagen placeholder, número, descripción y precio
+- Al tocar navega a `PieceDetail` pasando `id` y `moneda`
+
+### `src/screens/auctions/PieceDetailScreen.js`
+Endpoint: `GET /piezas/:id`
+
+- Recibe `id` y `moneda` por `route.params`
+- Carrusel de imágenes horizontal con `pagingEnabled` y dots indicadores
+- Imágenes construidas con `SERVER_URL` + path relativo del backend
+- Badge "Obra de arte" condicional según `esObraDeArte`
+- Secciones: precio base, historia del artista, subasta asignada (fecha, rematador, ubicación)
