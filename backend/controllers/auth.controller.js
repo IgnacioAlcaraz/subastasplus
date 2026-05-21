@@ -7,6 +7,7 @@ const tokens = require("../lib/tokens");
 const HttpError = require("../lib/http-error");
 const { usuarioResumen } = require("../lib/usuario-shape");
 const { tieneMultaActiva, multaPendienteData, tieneMultaJudicial } = require("../lib/multas-helper");
+const { enviarCodigoRecuperacion } = require("../lib/mailer");
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -171,7 +172,7 @@ exports.recuperarClave = asyncHandler(async (req, res) => {
     codigo_expiracion: expiracion,
   });
 
-  console.log(`[recuperar-clave] email=${email} codigo=${codigo} expira=${expiracion}`);
+  await enviarCodigoRecuperacion(email, codigo);
 
   res.json({ message: "Código enviado al email" });
 });

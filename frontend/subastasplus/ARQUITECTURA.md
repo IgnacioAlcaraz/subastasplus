@@ -312,3 +312,42 @@ Endpoint: `GET /piezas/:id`
 - Imágenes construidas con `SERVER_URL` + path relativo del backend
 - Badge "Obra de arte" condicional según `esObraDeArte`
 - Secciones: precio base, historia del artista, subasta asignada (fecha, rematador, ubicación)
+
+---
+
+## Backend — Email Sender (Nodemailer + Gmail)
+
+### Plan de implementación
+
+**Objetivo:** Enviar emails reales con nodemailer/Gmail para dos casos de uso:
+1. Código de recuperación de contraseña (`POST /auth/recuperar-clave`)
+2. Notificación de aprobación de cuenta (`POST /admin/clientes/:id/aprobar`)
+
+**Variables de entorno requeridas en `backend/.env`:**
+```
+MAIL_USER=tucuenta@gmail.com
+MAIL_PASS=xxxx xxxx xxxx xxxx   # Contraseña de aplicación de Google (no la contraseña de la cuenta)
+```
+
+> Para generar la contraseña de aplicación: Google Account → Seguridad → Verificación en 2 pasos → Contraseñas de aplicaciones.
+
+### Archivos involucrados
+
+| Acción | Archivo |
+|--------|---------|
+| Instalar | `nodemailer` via npm en `backend/` |
+| Crear | `backend/lib/mailer.js` |
+| Modificar | `backend/.env` |
+| Modificar | `backend/controllers/auth.controller.js` |
+| Modificar | `backend/controllers/admin-clientes.controller.js` |
+
+### `backend/lib/mailer.js`
+
+Módulo con transporter de Gmail y dos funciones exportadas:
+- `enviarCodigoRecuperacion(email, codigo)` — email con el código OTP de 6 dígitos
+- `enviarAprobacionCliente(email, nombre, categoria)` — email de bienvenida post-aprobación
+
+### Cambios en controllers
+
+- `auth.controller.js` → reemplaza el `console.log` del código por `await enviarCodigoRecuperacion(email, codigo)`
+- `admin-clientes.controller.js` → después de `Clientes.update()`, obtiene el email del cliente y llama `await enviarAprobacionCliente(...)`

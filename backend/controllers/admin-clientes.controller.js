@@ -1,7 +1,10 @@
 const supabase = require("../supabase-client");
 const Clientes = require("../models/clientes");
+const ClientesAcceso = require("../models/clientes_acceso");
+const Personas = require("../models/personas");
 const HttpError = require("../lib/http-error");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
+const { enviarAprobacionCliente } = require("../lib/mailer");
 
 const CATEGORIAS_VALIDAS = ["comun", "especial", "plata", "oro", "platino"];
 
@@ -29,6 +32,13 @@ exports.aprobar = asyncHandler(async (req, res) => {
   }
 
   await Clientes.update(clienteId, { admitido: "si", categoria });
+
+  const acceso = await ClientesAcceso.findOne({ cliente: clienteId });
+  const persona = await Personas.findById(clienteId);
+  const nombreCliente = persona?.nombre?.split(" ")[0] || "Cliente";
+  if (acceso?.email) {
+    await enviarAprobacionCliente(acceso.email, nombreCliente, categoria);
+  }
 
   await crearNotificacion(clienteId, {
     tipo: "aprobacion_registro",
