@@ -43,7 +43,7 @@ function usuarioDetalle({ persona, cliente, acceso, pais, tieneMultaActiva = fal
     paisOrigen: pais?.nombre || null,
     categoria: cliente.categoria || "comun",
     estado: deriveEstado({ admitido: cliente.admitido, tieneMultaActiva }),
-    fotoPerfil: acceso?.foto_perfil || null,
+    fotoPerfil: !!persona?.foto,
     fechaRegistro: acceso?.fecha_registro || null,
   };
 }

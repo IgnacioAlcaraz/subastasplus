@@ -2,8 +2,10 @@ const tokens = require("../lib/tokens");
 
 function verifyToken(req, res, next) {
   const header = req.headers.authorization || "";
-  const [scheme, token] = header.split(" ");
-  if (scheme !== "Bearer" || !token) {
+  const [scheme, headerToken] = header.split(" ");
+  const token = (scheme === "Bearer" && headerToken) ? headerToken : req.query.token;
+
+  if (!token) {
     return res.status(401).json({
       code: "AUTH_TOKEN_INVALID",
       message: "Authorization Bearer token requerido",
@@ -13,7 +15,7 @@ function verifyToken(req, res, next) {
   try {
     req.user = tokens.verify(token, "access");
     next();
-  } catch (err) {
+  } catch {
     return res.status(401).json({
       code: "AUTH_TOKEN_INVALID",
       message: "Tu sesión expiró o el token es inválido. Iniciá sesión nuevamente.",
