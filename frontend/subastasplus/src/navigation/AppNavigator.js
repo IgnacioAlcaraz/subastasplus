@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from '../screens/home/HomeScreen';
 import AuctionsNavigator from './AuctionsNavigator';
+import VentasNavigator from './VentasNavigator';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import { colors } from '../constants';
 
@@ -19,6 +20,7 @@ export default function AppNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
       <Tab.Screen name="Auctions" component={AuctionsNavigator} options={{ title: 'Subastas' }} />
+      <Tab.Screen name="Ventas" component={VentasNavigator} options={{ title: 'Vender' }} />
       <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Perfil' }} />
     </Tab.Navigator>
   );

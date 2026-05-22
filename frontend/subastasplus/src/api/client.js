@@ -8,7 +8,7 @@ export const SERVER_URL = `http://${devHost}:3000`;
 
 const client = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
+  timeout: 60000,
   headers: { 'Content-Type': 'application/json' },
 });
 

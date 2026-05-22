@@ -107,10 +107,13 @@ exports.crear = asyncHandler(async (req, res) => {
   const {
     tipo,
     descripcion,
+    nombreBien,
     imagenes,
     historia,
     nombreArtista,
     fechaObra,
+    dueniosAnteriores,
+    curiosidades,
     declaracionPropiedad,
   } = req.body || {};
 
@@ -145,10 +148,13 @@ exports.crear = asyncHandler(async (req, res) => {
   const solicitud = await SolicitudesVenta.create({
     cliente: req.user.sub,
     tipo,
+    nombre_bien: nombreBien ? String(nombreBien).slice(0, 200) : null,
     descripcion: String(descripcion).slice(0, 4000),
     historia: historia ? String(historia).slice(0, 4000) : null,
     nombre_artista: nombreArtista ? String(nombreArtista).slice(0, 200) : null,
     fecha_obra: fechaObra ? String(fechaObra).slice(0, 50) : null,
+    duenos_anteriores: dueniosAnteriores ? String(dueniosAnteriores).slice(0, 4000) : null,
+    curiosidades: curiosidades ? String(curiosidades).slice(0, 4000) : null,
     declaracion_propiedad: "si",
     estado: "enviada",
     fecha_creacion: new Date().toISOString(),

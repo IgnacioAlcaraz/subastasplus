@@ -130,6 +130,14 @@ Stack navigator dentro del tab Subastas. Permite navegar al detalle sin perder e
 - Catalog → CatalogScreen
 - PieceDetail → PieceDetailScreen
 
+### src/navigation/VentasNavigator.js
+Stack navigator dentro del tab Vender.
+- VentasList → VentasScreen
+- NuevaSolicitudStep1 → NuevaSolicitudStep1Screen
+- NuevaSolicitudStep2 → NuevaSolicitudStep2Screen
+- ConfirmacionSolicitud → ConfirmacionSolicitudScreen
+- VentaDetalle → VentaDetalleScreen
+
 ---
 
 ## API
@@ -181,6 +189,13 @@ Exporta también SERVER_URL (http://<host>:3000) para construir URLs de imágene
 | getSubastas(estado, page) | GET | /subastas?estado=<estado>&page=<page> |
 | getSubastaById(id) | GET | /subastas/:id |
 | getCatalogo(subastaId, page) | GET | /subastas/:id/catalogo |
+
+### src/api/solicitudesVenta.js
+| Función | Método | Endpoint |
+|---|---|---|
+| getSolicitudes(page) | GET | /solicitudes-venta |
+| crearSolicitud(data) | POST | /solicitudes-venta |
+| getSolicitudById(id) | GET | /solicitudes-venta/:id |
 
 ### src/api/piezas.js
 | Función | Método | Endpoint |
@@ -318,6 +333,46 @@ Endpoint: GET /piezas/:id
 - Imágenes construidas con SERVER_URL + path relativo del backend
 - Badge "Obra de arte" condicional según esObraDeArte
 - Secciones: precio base, historia del artista, subasta asignada (fecha, rematador, ubicación)
+
+### src/screens/ventas/VentasScreen.js
+Endpoint: GET /solicitudes-venta
+
+- Tab "Vender" en AppNavigator (4to tab)
+- FlatList de solicitudes con card: imagen (foto 0 con Bearer token en header), descripción, badge de estado con color, chevron
+- Estados del backend mostrados tal cual: enviada, en_revision, aceptada, rechazada, en_subasta, vendida, no_vendida
+- FAB "+" navega a NuevaSolicitudStep1
+- Pull to refresh
+
+### src/screens/ventas/NuevaSolicitudStep1Screen.js
+- Barra de progreso 2 segmentos (paso 1/2)
+- Selector de tipo: ScrollView horizontal con chips para los 6 tipos del backend (arte, antiguedad, joya, vehiculo, mueble, otro)
+- Inputs: Nombre del bien → nombre_bien, Artista/diseñador → nombreArtista, Descripción → descripcion
+- Grid de 6 slots de fotos: slots llenos muestran la imagen con botón × para eliminar, slots vacíos muestran + dashed
+- Contador "X/6 min" en rojo cuando faltan fotos
+- Fotos desde galería con expo-image-picker (quality: 0.4, exif: false para reducir payload)
+- Validación: nombre, descripción y 6 fotos obligatorios antes de avanzar
+- Navega a NuevaSolicitudStep2 pasando todos los datos como params
+
+### src/screens/ventas/NuevaSolicitudStep2Screen.js
+Endpoint: POST /solicitudes-venta
+
+- Barra de progreso 2 segmentos (paso 2/2, ambos activos)
+- Inputs: Historia/contexto → historia, Dueños anteriores → dueniosAnteriores, Curiosidades → curiosidades
+- Checkbox "Declaro propiedad y sin impedimento legal" → declaracionPropiedad (obligatorio)
+- Al enviar llama a crearSolicitud con todos los datos de step1 + step2
+- En éxito navega con replace a ConfirmacionSolicitud
+
+### src/screens/ventas/ConfirmacionSolicitudScreen.js
+- Pantalla de éxito: círculo OK, título "Solicitud enviada", subtítulo
+- Botón "Ver mis solicitudes" navega a VentasList
+
+### src/screens/ventas/VentaDetalleScreen.js
+Endpoint: GET /solicitudes-venta/:id
+
+- Recibe id por route.params
+- Carrusel de imágenes con dots (imágenes autenticadas con Bearer token en header de Image)
+- Muestra: nombre del bien, cantidad de fotos · tipo, fecha de envío, mensaje "Esperando evaluación..."
+- Implementado para estados enviada/en_revision — otros estados pendientes
 
 ### src/screens/profile/ProfileScreen.js
 Endpoints: GET /perfil, PUT /perfil/foto, GET /perfil/foto
