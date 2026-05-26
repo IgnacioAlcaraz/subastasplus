@@ -40,32 +40,6 @@ function validar({ numero, titular, codigoSeguridad, vencimiento }) {
   return errs;
 }
 
-function formatNumero(text) {
-  const digits = text.replace(/\D/g, '').slice(0, 16);
-  return digits.match(/.{1,4}/g)?.join(' ') || digits;
-}
-
-function formatVencimiento(text) {
-  const digits = text.replace(/\D/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return digits.slice(0, 2) + '/' + digits.slice(2);
-}
-
-function validar({ numero, titular, codigoSeguridad, vencimiento }) {
-  const errs = {};
-  const digits = numero.replace(/\D/g, '');
-  if (digits.length !== 16) errs.numero = 'Debe tener 16 dígitos';
-  if (!titular.trim()) errs.titular = 'El titular es obligatorio';
-  if (!/^\d{3,4}$/.test(codigoSeguridad)) errs.codigoSeguridad = 'Debe tener 3 o 4 dígitos';
-  const m = vencimiento.match(/^(\d{2})\/(\d{2})$/);
-  if (!m) {
-    errs.vencimiento = 'Formato inválido (MM/AA)';
-  } else if (Number(m[1]) < 1 || Number(m[1]) > 12) {
-    errs.vencimiento = 'Mes inválido';
-  }
-  return errs;
-}
-
 export default function TarjetaScreen({ navigation, route }) {
   const [numero, setNumero] = useState('');
   const [titular, setTitular] = useState('');

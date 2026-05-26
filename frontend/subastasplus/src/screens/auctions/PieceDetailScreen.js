@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, typography } from "../../constants";
 import { getPiezaById } from "../../api/piezas";
-import { SERVER_URL } from "../../api/client";
+import { SERVER_URL, esErrorServidor } from "../../api/client";
+import ServerErrorScreen from "../../components/common/ServerErrorScreen";
 
 function formatFechaSubasta(isoString) {
   if (!isoString) return "-";
@@ -67,22 +68,29 @@ export default function PieceDetailScreen({ navigation, route }) {
   const { id, moneda = "US$" } = route.params;
   const [pieza, setPieza] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorServidor, setErrorServidor] = useState(false);
   const [imagenActiva, setImagenActiva] = useState(0);
 
-  useEffect(() => {
-    async function cargarPieza() {
-      try {
-        const datos = await getPiezaById(id);
-        setPieza(datos);
-      } catch (error) {
+  const cargarPieza = useCallback(async () => {
+    setLoading(true);
+    setErrorServidor(false);
+    try {
+      const datos = await getPiezaById(id);
+      setPieza(datos);
+    } catch (error) {
+      if (esErrorServidor(error)) {
+        setErrorServidor(true);
+      } else {
         Alert.alert("Error", "No se pudo cargar la pieza");
-      } finally {
-        setLoading(false);
       }
+    } finally {
+      setLoading(false);
     }
-
-    cargarPieza();
   }, [id]);
+
+  useEffect(() => {
+    cargarPieza();
+  }, [cargarPieza]);
 
   if (loading) {
     return (
@@ -90,6 +98,10 @@ export default function PieceDetailScreen({ navigation, route }) {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  if (errorServidor) {
+    return <ServerErrorScreen onRetry={cargarPieza} />;
   }
 
   if (!pieza) return null;

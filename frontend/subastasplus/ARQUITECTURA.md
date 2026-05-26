@@ -7,6 +7,7 @@
 - *AsyncStorage* — persistencia local del token
 - *expo-constants* — lectura dinámica de la IP del servidor
 - *expo-image-picker* — cámara para fotos del DNI
+- *@react-native-community/netinfo* — detección del estado de conexión a internet
 
 ---
 
@@ -29,9 +30,11 @@ src/
 
 Cuando el usuario abre la app:
 
-1. App.js monta el AuthProvider y el NavigationContainer
+1. App.js monta el AuthProvider, el OfflineGate y el NavigationContainer
 2. RootNavigator lee AsyncStorage y determina el estado
 3. Según el estado muestra el navigator correspondiente (ver máquina de estados)
+
+El OfflineGate envuelve toda la app: detecta la pérdida de conexión y muestra un overlay por encima de cualquier pantalla.
 
 ---
 
@@ -68,17 +71,20 @@ Estilos de texto reutilizables: h1, h2, h3, body, bodySmall, caption, button, la
 Maneja la sesión del usuario en toda la app.
 
 *Qué expone:*
-- status — estado actual: loading | unauthenticated | pending | requires_clave | requires_medio_pago | authenticated
+- status — estado actual: loading | unauthenticated | guest | pending | requires_clave | requires_medio_pago | authenticated
 - token — JWT del usuario logueado
 - user — objeto con datos del usuario (id, nombre, apellido, email, categoria, estado, cantidadMediosPago)
 - tokenSeguimiento — token de registro pendiente de aprobación
 - pendingData — { email, nombre, categoria } cuando el usuario fue aprobado pero no tiene clave
-- isAuthenticated — booleano derivado de si hay token
+- isAuthenticated — booleano derivado: status === 'authenticated'
+- isGuest — booleano derivado: status === 'pending' || status === 'guest'. Usar en pantallas para omitir llamadas a endpoints que requieren token
 - login(token, user) — guarda JWT, limpia tokenSeguimiento, cambia status a authenticated
 - logout() — borra token, usuario y auth_status de AsyncStorage
 - savePendingRegistration(tokenSeguimiento) — guarda token en AsyncStorage, cambia status a pending
 - startMedioPagoOnboarding(token, user) — guarda JWT y persiste auth_status='requires_medio_pago' en AsyncStorage, cambia status a requires_medio_pago
 - completeOnboarding() — borra auth_status de AsyncStorage, cambia status a authenticated
+- continueAsGuest() — cambia status a guest sin persistencia (ephemeral)
+- exitGuest(route?) — escribe el destino en pendingAuthRoute y cambia status a unauthenticated. route puede ser 'Login' (default) o 'Register'
 
 *Persistencia en AsyncStorage:*
 - token — JWT del usuario autenticado
@@ -96,10 +102,13 @@ Maneja la sesión del usuario en toda la app.
 |---|---|---|
 | loading | App recién abre, leyendo AsyncStorage | Spinner |
 | unauthenticated | Sin token ni tokenSeguimiento | AuthNavigator |
-| pending | Tiene tokenSeguimiento, sin token | AppNavigator (invitado) |
+| guest | Tocó "Continuar como invitado" en Login (ephemeral, no persiste) | AppNavigator (invitado anónimo) |
+| pending | Tiene tokenSeguimiento, esperando aprobación | AppNavigator (invitado pendiente) |
 | requires_clave | Token verificado, usuario aprobado sin clave | CreatePasswordScreen |
-| requires_medio_pago | JWT obtenido, pero cantidadMediosPago === 0. Estado persistido en AsyncStorage (auth_status) para sobrevivir cierres de app | RegistrarMedioPagoScreen |
+| requires_medio_pago | JWT obtenido, pero cantidadMediosPago === 0. Estado persistido en AsyncStorage (auth_status) para sobrevivir cierres de app | MedioPagoNavigator |
 | authenticated | Tiene JWT | AppNavigator (completo) |
+
+`guest` y `pending` son ambos modo invitado — `isGuest` los agrupa. Se diferencian solo en el contenido del GuestModal.
 
 *Transiciones automáticas al abrir la app:*
 - Encuentra tokenSeguimiento → llama a POST /registro/verificar-token
@@ -115,14 +124,19 @@ Maneja la sesión del usuario en toda la app.
 ### src/navigation/RootNavigator.js
 Punto de entrada de la navegación. Rutea según status del AuthContext:
 - loading → Spinner
-- authenticated → AppNavigator
-- pending → AppNavigator (sin token, modo invitado)
+- authenticated | pending | guest → AppNavigator
 - requires_clave → CreatePasswordScreen (directo, sin navigator)
 - requires_medio_pago → MedioPagoNavigator
 - unauthenticated → AuthNavigator
 
+### src/navigation/pendingAuthRoute.js
+Módulo singleton de una sola responsabilidad: almacenar el destino de navegación para el próximo mount de AuthNavigator.
+- setPendingAuthRoute(route) — escribe el destino ('Login' | 'Register')
+- consumePendingAuthRoute() — devuelve el destino y lo resetea a 'Login'
+Usado por exitGuest() en AuthContext para que AuthNavigator arranque en la pantalla correcta sin mezclar lógica de navegación en el contexto de auth.
+
 ### src/navigation/AuthNavigator.js
-Stack sin header. Pantallas:
+Stack sin header. Lee la ruta inicial con consumePendingAuthRoute() al montarse — por defecto 'Login', o 'Register' si el usuario viene de exitGuest('Register').
 - Login → LoginScreen
 - Register → RegisterScreen
 - ForgotPassword → ForgotPasswordScreen
@@ -131,11 +145,20 @@ Stack sin header. Pantallas:
 - PendingApproval → PendingApprovalScreen
 
 ### src/navigation/AppNavigator.js
-Tab navigator con 4 tabs. En modo invitado (status === 'pending') los tabs Ventas y Perfil interceptan el tap y muestran GuestModal.
+Tab navigator con 4 tabs. En modo invitado (isGuest del contexto) los tabs Ventas y Perfil interceptan el tap y muestran GuestModal con la variante correspondiente al status actual.
 - Home → HomeScreen
-- Auctions → AuctionsNavigator (stack interno)
+- Auctions → AuctionsNavigator (stack interno). Listener custom: resetea al AuctionsList al tocar el tab para evitar quedar en una pantalla de detalle
 - Ventas → VentasNavigator (stack interno)
-- Profile → ProfileScreen
+- Profile → ProfileNavigator (stack interno)
+
+### src/navigation/ProfileNavigator.js
+Stack navigator dentro del tab Perfil.
+- ProfileHome → ProfileScreen
+- MediosPago → MediosPagoScreen
+- cuenta-nacional → CuentaNacionalScreen
+- cuenta-exterior → CuentaExteriorScreen
+- tarjeta → TarjetaScreen
+- cheque → ChequeScreen
 
 ### src/navigation/AuctionsNavigator.js
 Stack navigator dentro del tab Subastas. Permite navegar al detalle sin perder el tab bar.
@@ -173,7 +196,8 @@ Instancia de axios configurada con:
 - baseURL dinámica usando Constants.expoConfig.hostUri — toma la IP automáticamente de la máquina que corre Expo, funciona en cualquier computadora sin cambiar nada
 - Puerto fijo: 3000/v1
 - Interceptor de request: inyecta Authorization: Bearer <token> automáticamente
-- Interceptor de response: convierte errores del servidor en objetos Error con el mensaje del backend
+- Interceptor de response: convierte errores del servidor en objetos Error con el mensaje del backend y adjunta el status HTTP en error.status
+- Exporta esErrorServidor(error) — devuelve true si error.status >= 500; lo usan las pantallas para decidir si muestran ServerErrorScreen
 
 ### src/api/auth.js
 | Función | Método | Endpoint |
@@ -266,13 +290,56 @@ Props: label, value, onSelect, opciones, error
 - error — texto de error en rojo debajo del campo, borde rojo cuando está presente
 - Usado en CuentaNacionalScreen y CuentaExteriorScreen (y futuros formularios de medios de pago)
 
-### src/components/common/GuestModal.js
-Props: visible, onClose
+### src/components/common/CardMedioPago.js
+Props: item
 
-- Modal semitransparente centrado en pantalla
-- Informa al usuario que su cuenta está siendo revisada
-- Botón "Entendido" llama a onClose
-- Usado en AppNavigator (tabs restringidos) y pantallas con acciones que requieren cuenta aprobada
+- Muestra una card con ícono circular, título mascarado (ej: `Cta. HSBC ***890`), subtítulo del tipo, y badge de verificación
+- Badge verde "Verificado" si `item.verificado === 'si'`; gris "Pendiente" en caso contrario
+- Lógica de título y subtítulo encapsulada por tipo: cuenta_nacional, cuenta_exterior, tarjeta, cheque
+- Usado en MediosPagoScreen
+
+### src/components/common/GuestModal.js
+Props: visible, onClose, variant ('pending' | 'guest'), onLogin, onRegister
+
+- Modal semitransparente centrado en pantalla con un único árbol JSX
+- Textos centralizados en el objeto CONTENT, indexado por variant
+- variant 'pending': título "Cuenta en revisión", botón único "Entendido" → onClose
+- variant 'guest': título "Acción no disponible", dos botones en fila → "Iniciar Sesión" (onLogin) y "Registrarse" (onRegister)
+- Usado en AppNavigator (tabs restringidos) y AuctionDetailScreen ("Entrar a subasta")
+
+### src/components/common/OfflineScreen.js
+Props: onRetry
+
+- Pantalla a pantalla completa: círculo gris con X, título "Sin conexión a internet" y botón "Reintentar" (Button verde primary)
+- Estilos desde colors.js y typography.js
+- onRetry se dispara al tocar "Reintentar" (lo provee OfflineGate)
+
+### src/components/common/ConfirmModal.js
+Props: visible, onConfirm, onCancel, title, message, confirmText, cancelText
+
+- Modal reutilizable para confirmar acciones críticas (overlay oscuro, card centrada)
+- title (default "¿Estás seguro?"), message (default "Esta acción no se puede deshacer."), confirmText (default "Confirmar"), cancelText (default "Cancelar")
+- Título y mensaje alineados a la izquierda; fila de dos botones (Confirmar = Button verde primary, Cancelar = Button outline)
+- onConfirm / onCancel manejados por la pantalla que lo usa
+
+### src/components/common/ServerErrorScreen.js
+Props: onRetry
+
+- Pantalla a pantalla completa: círculo gris con !, título "Algo salió mal", subtítulo "Hubo un error en el servidor. Intentá de nuevo más tarde." y botón "Reintentar" (Button verde primary)
+- Estilos desde colors.js y typography.js
+- La renderiza cada pantalla cuando su carga de datos falla con error de servidor (5xx); onRetry vuelve a ejecutar la carga
+- Patrón de uso en pantallas: estado errorServidor + función de carga (useCallback); en el catch, si esErrorServidor(error) → setErrorServidor(true), sino Alert como antes
+- Wired en todas las pantallas que cargan datos: HomeScreen, AuctionsScreen, AuctionDetailScreen, CatalogScreen, PieceDetailScreen, VentasScreen, VentaDetalleScreen, ProfileScreen
+
+### src/components/OfflineGate.js
+Props: children
+
+- Componente envolvente que detecta el estado de conexión con NetInfo (no es de common/ porque envuelve la app entera, no es un control reutilizable)
+- Se suscribe a NetInfo.addEventListener al montar; considera offline cuando isConnected === false o isInternetReachable === false (cubre "WiFi sin internet" y timeouts)
+- Estado null (desconocido al arrancar) se trata como online para evitar falsos positivos
+- Renderiza children siempre + un overlay (absoluteFill) con OfflineScreen cuando no hay conexión, así la navegación queda montada debajo y no se pierde la pantalla actual
+- "Reintentar" llama a NetInfo.refresh(); si vuelve la conexión el overlay desaparece solo
+- Montado en App.js envolviendo al NavigationContainer
 
 ---
 
@@ -344,7 +411,8 @@ Devuelve todos los países de la tabla paises. Sin autenticación requerida.
 ### src/screens/home/HomeScreen.js
 Endpoints: GET /perfil, GET /medios-pago, GET /subastas?estado=en_vivo, GET /subastas?estado=programada
 
-- En modo invitado (status === 'pending'): solo carga subastas, muestra "Bienvenido" y banner amarillo de cuenta en revisión
+- En modo invitado (isGuest): solo carga subastas, muestra "Bienvenido" y omite llamadas a /perfil y /medios-pago
+- Banner amarillo "cuenta en revisión" solo cuando status === 'pending' (no para guest anónimo)
 - En modo autenticado: carga los 4 endpoints en paralelo con Promise.all, muestra saludo con nombre, badges de categoría y medios
 - Sección "En vivo ahora": FlatList horizontal de subastas activas
 - Sección "Próximas": FlatList horizontal de subastas programadas
@@ -364,7 +432,7 @@ Endpoint: GET /subastas/:id
 - Muestra título, badges de categoría y moneda, tabla de info (fecha, hora, ubicación, rematador)
 - fecha y hora se parsean del ISO timestamp que devuelve el backend
 - Botón "Ver catálogo" conectado → navega a Catalog pasando subastaId y moneda
-- Botón "Entrar a subasta": muestra GuestModal si status === 'pending'; lógica de sala pendiente de conectar para usuarios autenticados
+- Botón "Entrar a subasta": muestra GuestModal (variant=status) si isGuest; lógica de sala pendiente de conectar para usuarios autenticados
 
 ### src/screens/auctions/CatalogScreen.js
 Endpoint: GET /subastas/:id/catalogo
@@ -452,8 +520,8 @@ Endpoint: GET /solicitudes-venta/:id/contactar-aseguradora
 
 ### src/screens/mediosPago/RegistrarMedioPagoScreen.js
 Sin endpoint propio — es un selector estático con 4 opciones que navegan a los formularios correspondientes.
-- Primera pantalla de MedioPagoNavigator
-- También accesible desde ProfileScreen (pendiente de conectar)
+- Primera pantalla de MedioPagoNavigator (solo en el flujo de onboarding)
+- El flujo desde perfil usa MediosPagoScreen en su lugar (con FAB + modal)
 - Opciones: Cuenta bancaria nacional, Cuenta bancaria extranjera, Cheque certificado, Tarjeta de crédito
 
 ### src/screens/mediosPago/CuentaNacionalScreen.js
@@ -463,7 +531,7 @@ Endpoint: POST /medios-pago/cuenta-nacional
 - CBU: solo acepta dígitos, máximo 22. CUIT/CUIL: auto-formato XX-XXXXXXXX-X al tipear
 - Validaciones: CBU exactamente 22 dígitos, CUIT/CUIL exactamente 11 dígitos
 - Errores inline bajo cada campo
-- Al éxito navega a RegistroCompleto
+- Al éxito navega a `route.params?.successRoute ?? 'RegistroCompleto'`
 
 ### src/screens/mediosPago/CuentaExteriorScreen.js
 Endpoint: POST /medios-pago/cuenta-exterior
@@ -472,7 +540,7 @@ Endpoint: POST /medios-pago/cuenta-exterior
 - SWIFT: se convierte automáticamente a mayúsculas al tipear
 - Validaciones: SWIFT 8-11 caracteres, todos los campos requeridos
 - Errores inline bajo cada campo
-- Al éxito navega a RegistroCompleto
+- Al éxito navega a `route.params?.successRoute ?? 'RegistroCompleto'`
 
 ### src/screens/mediosPago/ChequeScreen.js
 Endpoint: POST /medios-pago/cheque
@@ -481,7 +549,7 @@ Endpoint: POST /medios-pago/cheque
 - Fecha de emisión: auto-formato AAAA-MM-DD al tipear (solo números, guiones automáticos)
 - Validaciones: monto > 0, fecha en formato AAAA-MM-DD válido
 - Errores inline bajo cada campo
-- Al éxito navega a RegistroCompleto
+- Al éxito navega a `route.params?.successRoute ?? 'RegistroCompleto'`
 
 ### src/screens/mediosPago/TarjetaScreen.js
 Endpoint: POST /medios-pago/tarjeta
@@ -492,7 +560,7 @@ Endpoint: POST /medios-pago/tarjeta
 - Validaciones: 16 dígitos, CVV 3-4 dígitos, mes 01-12
 - El CVV nunca se persiste en el backend — solo se usan los últimos 4 dígitos del número
 - Errores inline bajo cada campo
-- Al éxito navega a RegistroCompleto
+- Al éxito navega a `route.params?.successRoute ?? 'RegistroCompleto'`
 
 ### src/screens/mediosPago/RegistroCompletoScreen.js
 Sin endpoint — lee categoría del usuario desde AuthContext.
@@ -505,10 +573,19 @@ Endpoints: GET /perfil, PUT /perfil/foto, GET /perfil/foto
 
 - Header con fondo primaryDark: avatar circular touchable, nombre completo en blanco, badge de categoría semi-transparente
 - Avatar: si el usuario tiene foto (perfil.fotoPerfil truthy) carga GET /perfil/foto con Bearer token en headers; si falla o no hay foto muestra iniciales (nombre[0]+apellido[0]) como fallback
-- Al tocar el avatar abre expo-image-picker (galería, recorte cuadrado 1:1, quality 0.7); sube base64 a PUT /perfil/foto y refresca la imagen con un fotoKey timestamp para invalidar caché
+- Al tocar el avatar abre expo-image-picker (cámara, recorte cuadrado 1:1, quality 0.5); sube base64 a PUT /perfil/foto y refresca la imagen
 - Badge verde (colors.primary) en la esquina inferior derecha del avatar indica que es editable
-- Card blanca con ítems de menú (ProfileMenuItem): Medios de pago, Historial compras, Historial ventas, Métricas, Multa a pagar — cada uno navega a su pantalla futura
-- Botón "Cerrar sesión" fijo en la parte inferior con Button variant="outline", llama a logout() del AuthContext
+- Card blanca con ítems de menú (ProfileMenuItem): Medios de pago navega a MediosPagoScreen; el resto (Historial compras, Historial ventas, Métricas, Multa a pagar) pendientes de conectar
+- Botón "Cerrar sesión" fijo en la parte inferior (Button variant="danger") abre un ConfirmModal ("Cerrar sesión" / "¿Querés cerrar tu sesión?...", confirmText "Cerrar"); al confirmar llama a logout() del AuthContext
+
+### src/screens/mediosPago/MediosPagoScreen.js
+Endpoint: GET /medios-pago
+
+- Accesible desde ProfileScreen → ítem "Medios de pago"
+- FlatList de medios registrados usando CardMedioPago; pull to refresh
+- Estado vacío: texto "Sin medios de pago / Tocá + para agregar uno"
+- FAB "+" en la esquina inferior derecha abre un Modal bottom sheet con 4 opciones
+- Cada opción navega al formulario correspondiente pasando `{ successRoute: 'MediosPago' }` para que al guardar vuelva a esta lista
 
 ---
 

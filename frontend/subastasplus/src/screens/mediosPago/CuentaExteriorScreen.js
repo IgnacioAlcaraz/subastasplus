@@ -39,18 +39,6 @@ function validar({ iban, swift, banco, pais, moneda, titular }) {
   return errs;
 }
 
-function validar({ iban, swift, banco, pais, moneda, titular }) {
-  const errs = {};
-  if (!iban.trim()) errs.iban = 'El IBAN es obligatorio';
-  const swiftLen = swift.replace(/\s/g, '').length;
-  if (swiftLen < 8 || swiftLen > 11) errs.swift = 'El SWIFT/BIC debe tener entre 8 y 11 caracteres';
-  if (!banco.trim()) errs.banco = 'El banco es obligatorio';
-  if (!pais) errs.pais = 'Seleccioná un país';
-  if (!moneda) errs.moneda = 'Seleccioná una moneda';
-  if (!titular.trim()) errs.titular = 'El titular es obligatorio';
-  return errs;
-}
-
 export default function CuentaExteriorScreen({ navigation, route }) {
   const [iban, setIban] = useState('');
   const [swift, setSwift] = useState('');

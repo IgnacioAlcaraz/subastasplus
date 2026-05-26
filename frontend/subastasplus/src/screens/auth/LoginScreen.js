@@ -20,7 +20,7 @@ export default function LoginScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login: saveSession } = useAuth();
+  const { login: saveSession, continueAsGuest } = useAuth();
 
   async function handleLogin() {
     if (!email || !password) {
@@ -94,7 +94,7 @@ export default function LoginScreen({ navigation }) {
           <Button
             title="Continuar como invitado"
             variant="outline"
-            onPress={() => {}}
+            onPress={continueAsGuest}
           />
         </ScrollView>
       </KeyboardAvoidingView>

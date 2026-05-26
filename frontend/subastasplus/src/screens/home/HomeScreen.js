@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,49 +15,57 @@ import { useAuth } from "../../context/AuthContext";
 import { getPerfil } from "../../api/perfil";
 import { getMediosPago } from "../../api/mediosPago";
 import { getSubastas } from "../../api/subastas";
+import { esErrorServidor } from "../../api/client";
 import AuctionCard from "../../components/common/AuctionCard";
+import ServerErrorScreen from "../../components/common/ServerErrorScreen";
 
 export default function HomeScreen({ navigation }) {
-  const { status } = useAuth();
-  const isGuest = status === 'pending';
+  const { status, isGuest } = useAuth();
 
   const [perfil, setPerfil] = useState(null);
   const [medios, setMedios] = useState([]);
   const [subastasEnVivo, setSubastasEnVivo] = useState([]);
   const [proximasSubastas, setProximasSubastas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorServidor, setErrorServidor] = useState(false);
+
+  const cargarDatos = useCallback(async () => {
+    setLoading(true);
+    setErrorServidor(false);
+    try {
+      if (isGuest) {
+        const [datosEnVivo, datosProximas] = await Promise.all([
+          getSubastas("en_vivo"),
+          getSubastas("programada"),
+        ]);
+        setSubastasEnVivo(datosEnVivo.data);
+        setProximasSubastas(datosProximas.data);
+      } else {
+        const [datosPerfil, datosMedios, datosEnVivo, datosProximas] = await Promise.all([
+          getPerfil(),
+          getMediosPago(),
+          getSubastas("en_vivo"),
+          getSubastas("programada"),
+        ]);
+        setPerfil(datosPerfil);
+        setMedios(datosMedios);
+        setSubastasEnVivo(datosEnVivo.data);
+        setProximasSubastas(datosProximas.data);
+      }
+    } catch (error) {
+      if (esErrorServidor(error)) {
+        setErrorServidor(true);
+      } else {
+        Alert.alert("Error", "No se pudieron cargar los datos");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [isGuest]);
 
   useEffect(() => {
-    async function cargarDatos() {
-      try {
-        if (isGuest) {
-          const [datosEnVivo, datosProximas] = await Promise.all([
-            getSubastas("en_vivo"),
-            getSubastas("programada"),
-          ]);
-          setSubastasEnVivo(datosEnVivo.data);
-          setProximasSubastas(datosProximas.data);
-        } else {
-          const [datosPerfil, datosMedios, datosEnVivo, datosProximas] = await Promise.all([
-            getPerfil(),
-            getMediosPago(),
-            getSubastas("en_vivo"),
-            getSubastas("programada"),
-          ]);
-          setPerfil(datosPerfil);
-          setMedios(datosMedios);
-          setSubastasEnVivo(datosEnVivo.data);
-          setProximasSubastas(datosProximas.data);
-        }
-      } catch (error) {
-        Alert.alert("Error", "No se pudieron cargar los datos");
-      } finally {
-        setLoading(false);
-      }
-    }
-
     cargarDatos();
-  }, []);
+  }, [cargarDatos]);
 
   if (loading) {
     return (
@@ -65,6 +73,10 @@ export default function HomeScreen({ navigation }) {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  if (errorServidor) {
+    return <ServerErrorScreen onRetry={cargarDatos} />;
   }
 
   const enVivoFiltradas = subastasEnVivo.filter((s) => s.estado === "en_vivo");
@@ -97,7 +109,7 @@ export default function HomeScreen({ navigation }) {
           )}
         </View>
 
-        {isGuest && (
+        {status === 'pending' && (
           <View style={styles.banner}>
             <Text style={styles.bannerTexto}>
               Tu cuenta está siendo revisada. Te avisaremos cuando sea aprobada.
