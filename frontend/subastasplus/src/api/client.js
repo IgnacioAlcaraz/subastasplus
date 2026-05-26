@@ -22,8 +22,14 @@ client.interceptors.response.use(
   (response) => response,
   (error) => {
     const message = error.response?.data?.message || error.message || 'Error de red';
-    return Promise.reject(new Error(message));
+    const err = new Error(message);
+    err.status = error.response?.status;
+    return Promise.reject(err);
   }
 );
+
+export function esErrorServidor(error) {
+  return error?.status >= 500;
+}
 
 export default client;

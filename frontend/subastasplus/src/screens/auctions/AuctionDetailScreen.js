@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, typography } from "../../constants";
 import { useAuth } from "../../context/AuthContext";
 import { getSubastaById } from "../../api/subastas";
+import { esErrorServidor } from "../../api/client";
 import GuestModal from "../../components/common/GuestModal";
+import ServerErrorScreen from "../../components/common/ServerErrorScreen";
 
 function formatFecha(isoString) {
   if (!isoString) return "-";
@@ -31,22 +33,29 @@ export default function AuctionDetailScreen({ navigation, route }) {
   const { status, isGuest, exitGuest } = useAuth();
   const [subasta, setSubasta] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorServidor, setErrorServidor] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
 
-  useEffect(() => {
-    async function cargarSubasta() {
-      try {
-        const datos = await getSubastaById(id);
-        setSubasta(datos);
-      } catch (error) {
+  const cargarSubasta = useCallback(async () => {
+    setLoading(true);
+    setErrorServidor(false);
+    try {
+      const datos = await getSubastaById(id);
+      setSubasta(datos);
+    } catch (error) {
+      if (esErrorServidor(error)) {
+        setErrorServidor(true);
+      } else {
         Alert.alert("Error", "No se pudo cargar la subasta");
-      } finally {
-        setLoading(false);
       }
+    } finally {
+      setLoading(false);
     }
-
-    cargarSubasta();
   }, [id]);
+
+  useEffect(() => {
+    cargarSubasta();
+  }, [cargarSubasta]);
 
   if (loading) {
     return (
@@ -54,6 +63,10 @@ export default function AuctionDetailScreen({ navigation, route }) {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  if (errorServidor) {
+    return <ServerErrorScreen onRetry={cargarSubasta} />;
   }
 
   if (!subasta) return null;

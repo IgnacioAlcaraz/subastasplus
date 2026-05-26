@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   ScrollView, FlatList, Image, Dimensions,
@@ -6,7 +6,8 @@ import {
 import { colors, typography } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 import { getSolicitudById } from '../../api/solicitudesVenta';
-import { SERVER_URL } from '../../api/client';
+import { SERVER_URL, esErrorServidor } from '../../api/client';
+import ServerErrorScreen from '../../components/common/ServerErrorScreen';
 
 const TIPO_LABEL = {
   arte: 'Obra de arte',
@@ -65,13 +66,24 @@ export default function VentaDetalleScreen({ navigation, route }) {
   const { token } = useAuth();
   const [solicitud, setSolicitud] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorServidor, setErrorServidor] = useState(false);
+
+  const cargar = useCallback(async () => {
+    setLoading(true);
+    setErrorServidor(false);
+    try {
+      const datos = await getSolicitudById(id);
+      setSolicitud(datos);
+    } catch (error) {
+      if (esErrorServidor(error)) setErrorServidor(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    getSolicitudById(id)
-      .then(setSolicitud)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [id]);
+    cargar();
+  }, [cargar]);
 
   if (loading) {
     return (
@@ -79,6 +91,10 @@ export default function VentaDetalleScreen({ navigation, route }) {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  if (errorServidor) {
+    return <ServerErrorScreen onRetry={cargar} />;
   }
 
   if (!solicitud) {

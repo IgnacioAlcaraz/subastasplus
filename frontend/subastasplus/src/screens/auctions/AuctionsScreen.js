@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,37 +11,46 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, typography } from "../../constants";
 import { getSubastas } from "../../api/subastas";
+import { esErrorServidor } from "../../api/client";
 import AuctionCard from "../../components/common/AuctionCard";
+import ServerErrorScreen from "../../components/common/ServerErrorScreen";
 
 export default function AuctionsScreen({ navigation }) {
   const [tabActivo, setTabActivo] = useState("en_vivo");
   const [subastasAbiertas, setSubastasAbiertas] = useState([]);
   const [subastasFinalizadas, setSubastasFinalizadas] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorServidor, setErrorServidor] = useState(false);
 
   const subastasVisibles =
     tabActivo === "finalizada"
       ? subastasFinalizadas
       : subastasAbiertas.filter((s) => s.estado === tabActivo);
 
-  useEffect(() => {
-    async function cargarDatos() {
-      try {
-        const [datosAbiertas, datosFinalizadas] = await Promise.all([
-          getSubastas("en_vivo"),
-          getSubastas("finalizada"),
-        ]);
-        setSubastasAbiertas(datosAbiertas.data);
-        setSubastasFinalizadas(datosFinalizadas.data);
-      } catch (error) {
+  const cargarDatos = useCallback(async () => {
+    setLoading(true);
+    setErrorServidor(false);
+    try {
+      const [datosAbiertas, datosFinalizadas] = await Promise.all([
+        getSubastas("en_vivo"),
+        getSubastas("finalizada"),
+      ]);
+      setSubastasAbiertas(datosAbiertas.data);
+      setSubastasFinalizadas(datosFinalizadas.data);
+    } catch (error) {
+      if (esErrorServidor(error)) {
+        setErrorServidor(true);
+      } else {
         Alert.alert("Error", "No se pudieron cargar las subastas");
-      } finally {
-        setLoading(false);
       }
+    } finally {
+      setLoading(false);
     }
-
-    cargarDatos();
   }, []);
+
+  useEffect(() => {
+    cargarDatos();
+  }, [cargarDatos]);
 
   if (loading) {
     return (
@@ -49,6 +58,10 @@ export default function AuctionsScreen({ navigation }) {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  if (errorServidor) {
+    return <ServerErrorScreen onRetry={cargarDatos} />;
   }
 
   return (
