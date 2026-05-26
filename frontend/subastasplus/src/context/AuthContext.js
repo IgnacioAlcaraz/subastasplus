@@ -21,9 +21,10 @@ export function AuthProvider({ children }) {
       const savedUser = await AsyncStorage.getItem('user');
 
       if (savedToken) {
+        const savedStatus = await AsyncStorage.getItem('auth_status');
         setToken(savedToken);
         setUser(savedUser ? JSON.parse(savedUser) : null);
-        setStatus('authenticated');
+        setStatus(savedStatus === 'requires_medio_pago' ? 'requires_medio_pago' : 'authenticated');
         return;
       }
 
@@ -70,6 +71,7 @@ export function AuthProvider({ children }) {
   async function startMedioPagoOnboarding(tokenValue, userData) {
     await AsyncStorage.setItem('token', tokenValue);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
+    await AsyncStorage.setItem('auth_status', 'requires_medio_pago');
     await AsyncStorage.removeItem('tokenSeguimiento');
     setToken(tokenValue);
     setUser(userData);
@@ -78,7 +80,8 @@ export function AuthProvider({ children }) {
     setStatus('requires_medio_pago');
   }
 
-  function completeOnboarding() {
+  async function completeOnboarding() {
+    await AsyncStorage.removeItem('auth_status');
     setStatus('authenticated');
   }
 
@@ -91,6 +94,7 @@ export function AuthProvider({ children }) {
   async function logout() {
     await AsyncStorage.removeItem('token');
     await AsyncStorage.removeItem('user');
+    await AsyncStorage.removeItem('auth_status');
     setToken(null);
     setUser(null);
     setStatus('unauthenticated');

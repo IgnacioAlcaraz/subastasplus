@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { colors, typography } from '../../constants';
 
-export default function PickerField({ label, value, onSelect, opciones }) {
+export default function PickerField({ label, value, onSelect, opciones, error }) {
   const [visible, setVisible] = useState(false);
 
   const labelMostrado = typeof opciones[0] === 'string'
@@ -19,12 +19,13 @@ export default function PickerField({ label, value, onSelect, opciones }) {
   return (
     <View style={styles.wrapper}>
       <Text style={styles.label}>{label}</Text>
-      <TouchableOpacity style={styles.field} onPress={() => setVisible(true)}>
+      <TouchableOpacity style={[styles.field, error && styles.fieldError]} onPress={() => setVisible(true)}>
         <Text style={labelMostrado ? styles.valor : styles.placeholder}>
           {labelMostrado || `Seleccionar ${label.toLowerCase()}`}
         </Text>
         <Text style={styles.chevron}>v</Text>
       </TouchableOpacity>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
       <Modal transparent animationType="slide" visible={visible} onRequestClose={() => setVisible(false)}>
         <TouchableOpacity style={styles.overlay} onPress={() => setVisible(false)} activeOpacity={1}>
@@ -71,6 +72,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     backgroundColor: colors.surface,
+  },
+  fieldError: {
+    borderColor: colors.error,
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.error,
+    marginTop: 4,
   },
   valor: {
     ...typography.body,
