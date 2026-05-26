@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { colors, typography } from '../../constants';
 
-export default function Input({ label, value, onChangeText, placeholder, secureTextEntry = false, keyboardType = 'default' }) {
+export default function Input({ label, value, onChangeText, placeholder, secureTextEntry = false, keyboardType = 'default', error }) {
   const [focused, setFocused] = useState(false);
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <TextInput
-        style={[styles.input, focused && styles.inputFocused]}
+        style={[styles.input, focused && styles.inputFocused, error && styles.inputError]}
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
@@ -20,6 +20,7 @@ export default function Input({ label, value, onChangeText, placeholder, secureT
         onBlur={() => setFocused(false)}
         autoCapitalize="none"
       />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 }
@@ -45,5 +46,13 @@ const styles = StyleSheet.create({
   },
   inputFocused: {
     borderColor: colors.borderFocus,
+  },
+  inputError: {
+    borderColor: colors.error,
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.error,
+    marginTop: 4,
   },
 });

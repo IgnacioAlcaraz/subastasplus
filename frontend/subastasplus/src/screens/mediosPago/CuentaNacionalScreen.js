@@ -21,20 +21,40 @@ const TIPOS_CUENTA = [
 ];
 
 export default function CuentaNacionalScreen({ navigation, route }) {
+function formatCuit(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 10) return digits.slice(0, 2) + '-' + digits.slice(2);
+  return digits.slice(0, 2) + '-' + digits.slice(2, 10) + '-' + digits.slice(10);
+}
+
+function validar({ cbu, banco, tipoCuenta, titular, cuitCuil }) {
+  const errs = {};
+  if (cbu.replace(/\D/g, '').length !== 22) errs.cbu = 'El CBU debe tener 22 dígitos';
+  if (!banco) errs.banco = 'Seleccioná un banco';
+  if (!tipoCuenta) errs.tipoCuenta = 'Seleccioná el tipo de cuenta';
+  if (!titular.trim()) errs.titular = 'El titular es obligatorio';
+  if (cuitCuil.replace(/\D/g, '').length !== 11) errs.cuitCuil = 'El CUIT/CUIL debe tener 11 dígitos';
+  return errs;
+}
+
+export default function CuentaNacionalScreen({ navigation }) {
   const [cbu, setCbu] = useState('');
   const [banco, setBanco] = useState('');
   const [tipoCuenta, setTipoCuenta] = useState('');
   const [titular, setTitular] = useState('');
   const [cuitCuil, setCuitCuil] = useState('');
   const [alias, setAlias] = useState('');
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   async function handleRegistrar() {
-    if (!cbu || !banco || !tipoCuenta || !titular || !cuitCuil) {
-      Alert.alert('Campos incompletos', 'Completá todos los campos obligatorios');
+    const errs = validar({ cbu, banco, tipoCuenta, titular, cuitCuil });
+    if (Object.keys(errs).length) {
+      setErrors(errs);
       return;
     }
-
+    setErrors({});
     setLoading(true);
     try {
       await agregarCuentaNacional({ banco, cbu, cuitCuil, tipoCuenta, titular, alias });
@@ -59,24 +79,27 @@ export default function CuentaNacionalScreen({ navigation, route }) {
         <Input
           label="CBU (22 dígitos)"
           value={cbu}
-          onChangeText={setCbu}
+          onChangeText={t => setCbu(t.replace(/\D/g, '').slice(0, 22))}
           placeholder="0000003100010000000012"
           keyboardType="numeric"
+          error={errors.cbu}
         />
-        <PickerField label="Banco" value={banco} onSelect={setBanco} opciones={BANCOS_ARGENTINA} />
-        <PickerField label="Tipo de cuenta" value={tipoCuenta} onSelect={setTipoCuenta} opciones={TIPOS_CUENTA} />
+        <PickerField label="Banco" value={banco} onSelect={setBanco} opciones={BANCOS_ARGENTINA} error={errors.banco} />
+        <PickerField label="Tipo de cuenta" value={tipoCuenta} onSelect={setTipoCuenta} opciones={TIPOS_CUENTA} error={errors.tipoCuenta} />
         <Input
           label="Titular"
           value={titular}
           onChangeText={setTitular}
           placeholder="Juan Perez"
+          error={errors.titular}
         />
         <Input
           label="CUIT/CUIL"
           value={cuitCuil}
-          onChangeText={setCuitCuil}
+          onChangeText={t => setCuitCuil(formatCuit(t))}
           placeholder="20-12345678-9"
           keyboardType="numeric"
+          error={errors.cuitCuil}
         />
         <Input
           label="Alias (opcional)"
@@ -133,3 +156,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+}

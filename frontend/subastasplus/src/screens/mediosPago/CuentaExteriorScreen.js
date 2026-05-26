@@ -27,6 +27,30 @@ const MONEDAS = [
   { label: 'GBP', value: 'GBP' },
 ];
 
+function validar({ iban, swift, banco, pais, moneda, titular }) {
+  const errs = {};
+  if (!iban.trim()) errs.iban = 'El IBAN es obligatorio';
+  const swiftLen = swift.replace(/\s/g, '').length;
+  if (swiftLen < 8 || swiftLen > 11) errs.swift = 'El SWIFT/BIC debe tener entre 8 y 11 caracteres';
+  if (!banco.trim()) errs.banco = 'El banco es obligatorio';
+  if (!pais) errs.pais = 'Seleccioná un país';
+  if (!moneda) errs.moneda = 'Seleccioná una moneda';
+  if (!titular.trim()) errs.titular = 'El titular es obligatorio';
+  return errs;
+}
+
+function validar({ iban, swift, banco, pais, moneda, titular }) {
+  const errs = {};
+  if (!iban.trim()) errs.iban = 'El IBAN es obligatorio';
+  const swiftLen = swift.replace(/\s/g, '').length;
+  if (swiftLen < 8 || swiftLen > 11) errs.swift = 'El SWIFT/BIC debe tener entre 8 y 11 caracteres';
+  if (!banco.trim()) errs.banco = 'El banco es obligatorio';
+  if (!pais) errs.pais = 'Seleccioná un país';
+  if (!moneda) errs.moneda = 'Seleccioná una moneda';
+  if (!titular.trim()) errs.titular = 'El titular es obligatorio';
+  return errs;
+}
+
 export default function CuentaExteriorScreen({ navigation, route }) {
   const [iban, setIban] = useState('');
   const [swift, setSwift] = useState('');
@@ -34,17 +58,19 @@ export default function CuentaExteriorScreen({ navigation, route }) {
   const [pais, setPais] = useState('');
   const [moneda, setMoneda] = useState('');
   const [titular, setTitular] = useState('');
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   async function handleRegistrar() {
-    if (!iban || !swift || !banco || !pais || !moneda || !titular) {
-      Alert.alert('Campos incompletos', 'Completá todos los campos');
+    const errs = validar({ iban, swift, banco, pais, moneda, titular });
+    if (Object.keys(errs).length) {
+      setErrors(errs);
       return;
     }
-
+    setErrors({});
     setLoading(true);
     try {
-      await agregarCuentaExterior({ banco, swift, iban, pais, titular, moneda });
+      await agregarCuentaExterior({ banco, swift: swift.toUpperCase(), iban, pais, titular, moneda });
       navigation.navigate(route.params?.successRoute ?? 'RegistroCompleto');
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -68,26 +94,30 @@ export default function CuentaExteriorScreen({ navigation, route }) {
           value={iban}
           onChangeText={setIban}
           placeholder="GB29 NWBK 6016 1331 9268 19"
+          error={errors.iban}
         />
         <Input
           label="SWIFT/BIC"
           value={swift}
-          onChangeText={setSwift}
+          onChangeText={t => setSwift(t.toUpperCase())}
           placeholder="NWBKGB2L"
+          error={errors.swift}
         />
         <Input
           label="Banco"
           value={banco}
           onChangeText={setBanco}
           placeholder="HSBC London"
+          error={errors.banco}
         />
-        <PickerField label="País del banco" value={pais} onSelect={setPais} opciones={PAISES} />
-        <PickerField label="Moneda" value={moneda} onSelect={setMoneda} opciones={MONEDAS} />
+        <PickerField label="País del banco" value={pais} onSelect={setPais} opciones={PAISES} error={errors.pais} />
+        <PickerField label="Moneda" value={moneda} onSelect={setMoneda} opciones={MONEDAS} error={errors.moneda} />
         <Input
           label="Titular"
           value={titular}
           onChangeText={setTitular}
           placeholder="Juan Perez"
+          error={errors.titular}
         />
 
         <View style={styles.botonWrapper}>

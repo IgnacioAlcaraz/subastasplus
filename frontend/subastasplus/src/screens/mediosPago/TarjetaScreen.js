@@ -14,22 +14,81 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { agregarTarjeta } from '../../api/mediosPago';
 
+function formatNumero(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 16);
+  return digits.match(/.{1,4}/g)?.join(' ') || digits;
+}
+
+function formatVencimiento(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return digits.slice(0, 2) + '/' + digits.slice(2);
+}
+
+function validar({ numero, titular, codigoSeguridad, vencimiento }) {
+  const errs = {};
+  const digits = numero.replace(/\D/g, '');
+  if (digits.length !== 16) errs.numero = 'Debe tener 16 dígitos';
+  if (!titular.trim()) errs.titular = 'El titular es obligatorio';
+  if (!/^\d{3,4}$/.test(codigoSeguridad)) errs.codigoSeguridad = 'Debe tener 3 o 4 dígitos';
+  const m = vencimiento.match(/^(\d{2})\/(\d{2})$/);
+  if (!m) {
+    errs.vencimiento = 'Formato inválido (MM/AA)';
+  } else if (Number(m[1]) < 1 || Number(m[1]) > 12) {
+    errs.vencimiento = 'Mes inválido';
+  }
+  return errs;
+}
+
+function formatNumero(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 16);
+  return digits.match(/.{1,4}/g)?.join(' ') || digits;
+}
+
+function formatVencimiento(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return digits.slice(0, 2) + '/' + digits.slice(2);
+}
+
+function validar({ numero, titular, codigoSeguridad, vencimiento }) {
+  const errs = {};
+  const digits = numero.replace(/\D/g, '');
+  if (digits.length !== 16) errs.numero = 'Debe tener 16 dígitos';
+  if (!titular.trim()) errs.titular = 'El titular es obligatorio';
+  if (!/^\d{3,4}$/.test(codigoSeguridad)) errs.codigoSeguridad = 'Debe tener 3 o 4 dígitos';
+  const m = vencimiento.match(/^(\d{2})\/(\d{2})$/);
+  if (!m) {
+    errs.vencimiento = 'Formato inválido (MM/AA)';
+  } else if (Number(m[1]) < 1 || Number(m[1]) > 12) {
+    errs.vencimiento = 'Mes inválido';
+  }
+  return errs;
+}
+
 export default function TarjetaScreen({ navigation, route }) {
   const [numero, setNumero] = useState('');
   const [titular, setTitular] = useState('');
   const [codigoSeguridad, setCodigoSeguridad] = useState('');
   const [vencimiento, setVencimiento] = useState('');
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   async function handleRegistrar() {
-    if (!numero || !titular || !codigoSeguridad || !vencimiento) {
-      Alert.alert('Campos incompletos', 'Completá todos los campos');
+    const errs = validar({ numero, titular, codigoSeguridad, vencimiento });
+    if (Object.keys(errs).length) {
+      setErrors(errs);
       return;
     }
-
+    setErrors({});
     setLoading(true);
     try {
-      await agregarTarjeta({ numero, titular, vencimiento, codigoSeguridad });
+      await agregarTarjeta({
+        numero: numero.replace(/\D/g, ''),
+        titular,
+        vencimiento,
+        codigoSeguridad,
+      });
       navigation.navigate(route.params?.successRoute ?? 'RegistroCompleto');
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -49,32 +108,36 @@ export default function TarjetaScreen({ navigation, route }) {
 
       <ScrollView contentContainerStyle={styles.contenido}>
         <Input
-          label="Numero"
+          label="Número"
           value={numero}
-          onChangeText={setNumero}
+          onChangeText={t => setNumero(formatNumero(t))}
           placeholder="5544 5256 6233 5212"
           keyboardType="numeric"
+          error={errors.numero}
         />
         <Input
           label="Titular"
           value={titular}
           onChangeText={setTitular}
           placeholder="John Doe"
+          error={errors.titular}
         />
         <Input
           label="Código de seguridad"
           value={codigoSeguridad}
-          onChangeText={setCodigoSeguridad}
+          onChangeText={t => setCodigoSeguridad(t.replace(/\D/g, '').slice(0, 4))}
           placeholder="CVV"
           keyboardType="numeric"
           secureTextEntry
+          error={errors.codigoSeguridad}
         />
         <Input
           label="Vencimiento"
           value={vencimiento}
-          onChangeText={setVencimiento}
+          onChangeText={t => setVencimiento(formatVencimiento(t))}
           placeholder="MM/AA"
           keyboardType="numeric"
+          error={errors.vencimiento}
         />
 
         <View style={styles.botonWrapper}>

@@ -20,20 +20,60 @@ const MONEDAS = [
   { label: 'USD', value: 'USD' },
 ];
 
+function formatFecha(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return digits.slice(0, 4) + '-' + digits.slice(4);
+  return digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6);
+}
+
+function validar({ numeroCheque, banco, monto, moneda, fechaEmision }) {
+  const errs = {};
+  if (!numeroCheque.trim()) errs.numeroCheque = 'El número de cheque es obligatorio';
+  if (!banco) errs.banco = 'Seleccioná un banco';
+  if (!monto || Number(monto) <= 0) errs.monto = 'El monto debe ser mayor a 0';
+  if (!moneda) errs.moneda = 'Seleccioná una moneda';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaEmision) || isNaN(Date.parse(fechaEmision))) {
+    errs.fechaEmision = 'Formato inválido (AAAA-MM-DD)';
+  }
+  return errs;
+}
+
+function formatFecha(text) {
+  const digits = text.replace(/\D/g, '').slice(0, 8);
+  if (digits.length <= 4) return digits;
+  if (digits.length <= 6) return digits.slice(0, 4) + '-' + digits.slice(4);
+  return digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6);
+}
+
+function validar({ numeroCheque, banco, monto, moneda, fechaEmision }) {
+  const errs = {};
+  if (!numeroCheque.trim()) errs.numeroCheque = 'El número de cheque es obligatorio';
+  if (!banco) errs.banco = 'Seleccioná un banco';
+  if (!monto || Number(monto) <= 0) errs.monto = 'El monto debe ser mayor a 0';
+  if (!moneda) errs.moneda = 'Seleccioná una moneda';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaEmision) || isNaN(Date.parse(fechaEmision))) {
+    errs.fechaEmision = 'Formato inválido (AAAA-MM-DD)';
+  }
+  return errs;
+}
+
 export default function ChequeScreen({ navigation, route }) {
   const [numeroCheque, setNumeroCheque] = useState('');
   const [banco, setBanco] = useState('');
   const [monto, setMonto] = useState('');
   const [moneda, setMoneda] = useState('');
   const [fechaEmision, setFechaEmision] = useState('');
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   async function handleRegistrar() {
-    if (!numeroCheque || !banco || !monto || !moneda || !fechaEmision) {
-      Alert.alert('Campos incompletos', 'Completá todos los campos');
+    const errs = validar({ numeroCheque, banco, monto, moneda, fechaEmision });
+    if (Object.keys(errs).length) {
+      setErrors(errs);
       return;
     }
-
+    setErrors({});
     setLoading(true);
     try {
       await agregarCheque({
@@ -64,25 +104,28 @@ export default function ChequeScreen({ navigation, route }) {
         <Input
           label="Nro de cheque"
           value={numeroCheque}
-          onChangeText={setNumeroCheque}
+          onChangeText={t => setNumeroCheque(t.replace(/\D/g, ''))}
           placeholder="00012345"
           keyboardType="numeric"
+          error={errors.numeroCheque}
         />
-        <PickerField label="Banco emisor" value={banco} onSelect={setBanco} opciones={BANCOS_ARGENTINA} />
+        <PickerField label="Banco emisor" value={banco} onSelect={setBanco} opciones={BANCOS_ARGENTINA} error={errors.banco} />
         <Input
           label="Monto certificado"
           value={monto}
-          onChangeText={setMonto}
-          placeholder="80.000"
+          onChangeText={t => setMonto(t.replace(/[^0-9.]/g, ''))}
+          placeholder="80000"
           keyboardType="numeric"
+          error={errors.monto}
         />
-        <PickerField label="Moneda" value={moneda} onSelect={setMoneda} opciones={MONEDAS} />
+        <PickerField label="Moneda" value={moneda} onSelect={setMoneda} opciones={MONEDAS} error={errors.moneda} />
         <Input
-          label="Fecha de emision"
+          label="Fecha de emisión"
           value={fechaEmision}
-          onChangeText={setFechaEmision}
-          placeholder="YYYY-MM-DD"
+          onChangeText={t => setFechaEmision(formatFecha(t))}
+          placeholder="AAAA-MM-DD"
           keyboardType="numeric"
+          error={errors.fechaEmision}
         />
 
         <Text style={styles.aviso}>

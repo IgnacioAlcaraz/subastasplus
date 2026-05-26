@@ -75,10 +75,16 @@ Maneja la sesión del usuario en toda la app.
 - pendingData — { email, nombre, categoria } cuando el usuario fue aprobado pero no tiene clave
 - isAuthenticated — booleano derivado de si hay token
 - login(token, user) — guarda JWT, limpia tokenSeguimiento, cambia status a authenticated
-- logout() — borra token y usuario
+- logout() — borra token, usuario y auth_status de AsyncStorage
 - savePendingRegistration(tokenSeguimiento) — guarda token en AsyncStorage, cambia status a pending
-- startMedioPagoOnboarding(token, user) — guarda JWT, cambia status a requires_medio_pago
-- completeOnboarding() — cambia status de requires_medio_pago a authenticated
+- startMedioPagoOnboarding(token, user) — guarda JWT y persiste auth_status='requires_medio_pago' en AsyncStorage, cambia status a requires_medio_pago
+- completeOnboarding() — borra auth_status de AsyncStorage, cambia status a authenticated
+
+*Persistencia en AsyncStorage:*
+- token — JWT del usuario autenticado
+- user — objeto JSON con datos del usuario
+- tokenSeguimiento — token temporal durante registro pendiente
+- auth_status — persiste 'requires_medio_pago' para que restoreSession() lo restaure si el usuario cierra la app durante el onboarding
 
 *Por qué existe:* el token y el estado de sesión los necesitan múltiples pantallas y el navigator. Sin context habría que pasarlos como prop por toda la app.
 
@@ -92,7 +98,7 @@ Maneja la sesión del usuario en toda la app.
 | unauthenticated | Sin token ni tokenSeguimiento | AuthNavigator |
 | pending | Tiene tokenSeguimiento, sin token | AppNavigator (invitado) |
 | requires_clave | Token verificado, usuario aprobado sin clave | CreatePasswordScreen |
-| requires_medio_pago | JWT obtenido, pero cantidadMediosPago === 0 | RegistrarMedioPagoScreen |
+| requires_medio_pago | JWT obtenido, pero cantidadMediosPago === 0. Estado persistido en AsyncStorage (auth_status) para sobrevivir cierres de app | RegistrarMedioPagoScreen |
 | authenticated | Tiene JWT | AppNavigator (completo) |
 
 *Transiciones automáticas al abrir la app:*
@@ -234,11 +240,12 @@ Props: title, onPress, variant (primary \| outline), disabled
 - outline — fondo transparente, borde gris, texto secundario
 
 ### src/components/common/Input.js
-Props: label, value, onChangeText, placeholder, secureTextEntry, keyboardType
+Props: label, value, onChangeText, placeholder, secureTextEntry, keyboardType, error
 
 - Muestra label arriba del campo
 - Borde cambia a colors.borderFocus cuando está enfocado
 - secureTextEntry para campos de contraseña
+- error — texto de error en rojo debajo del campo, borde rojo cuando está presente
 
 ### src/components/common/ProfileMenuItem.js
 Props: label, onPress
@@ -247,10 +254,11 @@ Props: label, onPress
 - Usado en ProfileScreen para cada ítem del menú de navegación
 
 ### src/components/common/PickerField.js
-Props: label, value, onSelect, opciones
+Props: label, value, onSelect, opciones, error
 
 - Opciones puede ser array de strings o array de `{ label, value }`
 - Abre un bottom sheet modal con la lista de opciones
+- error — texto de error en rojo debajo del campo, borde rojo cuando está presente
 - Usado en CuentaNacionalScreen y CuentaExteriorScreen (y futuros formularios de medios de pago)
 
 ### src/components/common/GuestModal.js
@@ -420,25 +428,38 @@ Sin endpoint propio — es un selector estático con 4 opciones que navegan a lo
 Endpoint: POST /medios-pago/cuenta-nacional
 
 - Formulario: CBU (22 dígitos), Banco (picker), Tipo de cuenta (picker: caja_ahorro | cuenta_corriente), Titular, CUIT/CUIL, Alias (opcional)
+- CBU: solo acepta dígitos, máximo 22. CUIT/CUIL: auto-formato XX-XXXXXXXX-X al tipear
+- Validaciones: CBU exactamente 22 dígitos, CUIT/CUIL exactamente 11 dígitos
+- Errores inline bajo cada campo
 - Al éxito navega a RegistroCompleto
 
 ### src/screens/mediosPago/CuentaExteriorScreen.js
 Endpoint: POST /medios-pago/cuenta-exterior
 
 - Formulario: IBAN, SWIFT/BIC, Banco (texto libre), País del banco (picker), Moneda (picker: USD | EUR | GBP), Titular
+- SWIFT: se convierte automáticamente a mayúsculas al tipear
+- Validaciones: SWIFT 8-11 caracteres, todos los campos requeridos
+- Errores inline bajo cada campo
 - Al éxito navega a RegistroCompleto
 
 ### src/screens/mediosPago/ChequeScreen.js
 Endpoint: POST /medios-pago/cheque
 
-- Formulario: Nro de cheque, Banco emisor (picker), Monto certificado, Moneda (picker: ARS | USD), Fecha de emisión (YYYY-MM-DD)
+- Formulario: Nro de cheque, Banco emisor (picker), Monto certificado, Moneda (picker: ARS | USD), Fecha de emisión
+- Fecha de emisión: auto-formato AAAA-MM-DD al tipear (solo números, guiones automáticos)
+- Validaciones: monto > 0, fecha en formato AAAA-MM-DD válido
+- Errores inline bajo cada campo
 - Al éxito navega a RegistroCompleto
 
 ### src/screens/mediosPago/TarjetaScreen.js
 Endpoint: POST /medios-pago/tarjeta
 
 - Formulario: Número, Titular, Código de seguridad (CVV, secureTextEntry), Vencimiento (MM/AA)
+- Número: auto-formato en grupos de 4 (XXXX XXXX XXXX XXXX), se envía sin espacios al backend
+- Vencimiento: auto-formato MM/AA al tipear (barra automática tras el mes)
+- Validaciones: 16 dígitos, CVV 3-4 dígitos, mes 01-12
 - El CVV nunca se persiste en el backend — solo se usan los últimos 4 dígitos del número
+- Errores inline bajo cada campo
 - Al éxito navega a RegistroCompleto
 
 ### src/screens/mediosPago/RegistroCompletoScreen.js
