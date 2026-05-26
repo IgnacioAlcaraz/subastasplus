@@ -1,27 +1,46 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import HomeScreen from '../screens/home/HomeScreen';
 import AuctionsNavigator from './AuctionsNavigator';
 import VentasNavigator from './VentasNavigator';
 import ProfileScreen from '../screens/profile/ProfileScreen';
+import GuestModal from '../components/common/GuestModal';
+import { useAuth } from '../context/AuthContext';
 import { colors } from '../constants';
 
 const Tab = createBottomTabNavigator();
 
 export default function AppNavigator() {
+  const { status } = useAuth();
+  const [modalVisible, setModalVisible] = useState(false);
+
+  function guestListener() {
+    return {
+      tabPress: (e) => {
+        if (status === 'pending') {
+          e.preventDefault();
+          setModalVisible(true);
+        }
+      },
+    };
+  }
+
   return (
-    <Tab.Navigator
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
-      }}
-    >
-      <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
-      <Tab.Screen name="Auctions" component={AuctionsNavigator} options={{ title: 'Subastas' }} />
-      <Tab.Screen name="Ventas" component={VentasNavigator} options={{ title: 'Vender' }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Perfil' }} />
-    </Tab.Navigator>
+    <>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: colors.primary,
+          tabBarInactiveTintColor: colors.textSecondary,
+          tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
+        }}
+      >
+        <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
+        <Tab.Screen name="Auctions" component={AuctionsNavigator} options={{ title: 'Subastas' }} />
+        <Tab.Screen name="Ventas" component={VentasNavigator} options={{ title: 'Vender' }} listeners={guestListener()} />
+        <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Perfil' }} listeners={guestListener()} />
+      </Tab.Navigator>
+      <GuestModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+    </>
   );
 }

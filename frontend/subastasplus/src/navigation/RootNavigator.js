@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import AuthNavigator from './AuthNavigator';
 import AppNavigator from './AppNavigator';
 import CreatePasswordScreen from '../screens/auth/CreatePasswordScreen';
+import MedioPagoNavigator from './MedioPagoNavigator';
 import { colors } from '../constants';
 
 export default function RootNavigator() {
@@ -20,5 +21,6 @@ export default function RootNavigator() {
   if (status === 'authenticated') return <AppNavigator />;
   if (status === 'pending') return <AppNavigator />;
   if (status === 'requires_clave') return <CreatePasswordScreen />;
+  if (status === 'requires_medio_pago') return <MedioPagoNavigator />;
   return <AuthNavigator />;
 }

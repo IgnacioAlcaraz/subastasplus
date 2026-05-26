@@ -57,6 +57,9 @@ Paleta de colores global. Todos los estilos de la app usan estas variables.
 ### src/constants/typography.js
 Estilos de texto reutilizables: h1, h2, h3, body, bodySmall, caption, button, label.
 
+### src/constants/mediosPago.js
+- BANCOS_ARGENTINA — lista de bancos argentinos comunes para los pickers de CuentaNacionalScreen y ChequeScreen
+
 ---
 
 ## Contexto global
@@ -65,7 +68,7 @@ Estilos de texto reutilizables: h1, h2, h3, body, bodySmall, caption, button, la
 Maneja la sesión del usuario en toda la app.
 
 *Qué expone:*
-- status — estado actual: loading | unauthenticated | pending | requires_clave | authenticated
+- status — estado actual: loading | unauthenticated | pending | requires_clave | requires_medio_pago | authenticated
 - token — JWT del usuario logueado
 - user — objeto con datos del usuario (id, nombre, apellido, email, categoria, estado, cantidadMediosPago)
 - tokenSeguimiento — token de registro pendiente de aprobación
@@ -74,6 +77,8 @@ Maneja la sesión del usuario en toda la app.
 - login(token, user) — guarda JWT, limpia tokenSeguimiento, cambia status a authenticated
 - logout() — borra token y usuario
 - savePendingRegistration(tokenSeguimiento) — guarda token en AsyncStorage, cambia status a pending
+- startMedioPagoOnboarding(token, user) — guarda JWT, cambia status a requires_medio_pago
+- completeOnboarding() — cambia status de requires_medio_pago a authenticated
 
 *Por qué existe:* el token y el estado de sesión los necesitan múltiples pantallas y el navigator. Sin context habría que pasarlos como prop por toda la app.
 
@@ -87,6 +92,7 @@ Maneja la sesión del usuario en toda la app.
 | unauthenticated | Sin token ni tokenSeguimiento | AuthNavigator |
 | pending | Tiene tokenSeguimiento, sin token | AppNavigator (invitado) |
 | requires_clave | Token verificado, usuario aprobado sin clave | CreatePasswordScreen |
+| requires_medio_pago | JWT obtenido, pero cantidadMediosPago === 0 | RegistrarMedioPagoScreen |
 | authenticated | Tiene JWT | AppNavigator (completo) |
 
 *Transiciones automáticas al abrir la app:*
@@ -106,6 +112,7 @@ Punto de entrada de la navegación. Rutea según status del AuthContext:
 - authenticated → AppNavigator
 - pending → AppNavigator (sin token, modo invitado)
 - requires_clave → CreatePasswordScreen (directo, sin navigator)
+- requires_medio_pago → MedioPagoNavigator
 - unauthenticated → AuthNavigator
 
 ### src/navigation/AuthNavigator.js
@@ -118,9 +125,10 @@ Stack sin header. Pantallas:
 - PendingApproval → PendingApprovalScreen
 
 ### src/navigation/AppNavigator.js
-Tab navigator. Pantallas:
+Tab navigator con 4 tabs. En modo invitado (status === 'pending') los tabs Ventas y Perfil interceptan el tap y muestran GuestModal.
 - Home → HomeScreen
 - Auctions → AuctionsNavigator (stack interno)
+- Ventas → VentasNavigator (stack interno)
 - Profile → ProfileScreen
 
 ### src/navigation/AuctionsNavigator.js
@@ -129,6 +137,15 @@ Stack navigator dentro del tab Subastas. Permite navegar al detalle sin perder e
 - AuctionDetail → AuctionDetailScreen
 - Catalog → CatalogScreen
 - PieceDetail → PieceDetailScreen
+
+### src/navigation/MedioPagoNavigator.js
+Stack navigator renderizado por RootNavigator cuando status === 'requires_medio_pago'.
+- RegistrarMedioPago → RegistrarMedioPagoScreen (selector de tipo)
+- cuenta-nacional → CuentaNacionalScreen
+- cuenta-exterior → CuentaExteriorScreen
+- tarjeta → TarjetaScreen
+- cheque → ChequeScreen
+- RegistroCompleto → RegistroCompletoScreen
 
 ### src/navigation/VentasNavigator.js
 Stack navigator dentro del tab Vender.
@@ -179,6 +196,10 @@ Instancia de axios configurada con:
 | Función | Método | Endpoint |
 |---|---|---|
 | getMediosPago() | GET | /medios-pago |
+| agregarCuentaNacional({ banco, cbu, cuitCuil, tipoCuenta, titular, alias }) | POST | /medios-pago/cuenta-nacional |
+| agregarCuentaExterior({ banco, swift, iban, pais, titular, moneda, alias }) | POST | /medios-pago/cuenta-exterior |
+| agregarTarjeta({ numero, titular, vencimiento, codigoSeguridad }) | POST | /medios-pago/tarjeta |
+| agregarCheque({ banco, numeroCheque, monto, moneda, fechaEmision }) | POST | /medios-pago/cheque |
 
 ### src/api/client.js
 Exporta también SERVER_URL (http://<host>:3000) para construir URLs de imágenes sin el prefijo /v1.
@@ -224,6 +245,21 @@ Props: label, onPress
 
 - Fila touchable con texto a la izquierda y chevron › a la derecha
 - Usado en ProfileScreen para cada ítem del menú de navegación
+
+### src/components/common/PickerField.js
+Props: label, value, onSelect, opciones
+
+- Opciones puede ser array de strings o array de `{ label, value }`
+- Abre un bottom sheet modal con la lista de opciones
+- Usado en CuentaNacionalScreen y CuentaExteriorScreen (y futuros formularios de medios de pago)
+
+### src/components/common/GuestModal.js
+Props: visible, onClose
+
+- Modal semitransparente centrado en pantalla
+- Informa al usuario que su cuenta está siendo revisada
+- Botón "Entendido" llama a onClose
+- Usado en AppNavigator (tabs restringidos) y pantallas con acciones que requieren cuenta aprobada
 
 ---
 
@@ -295,10 +331,10 @@ Devuelve todos los países de la tabla paises. Sin autenticación requerida.
 ### src/screens/home/HomeScreen.js
 Endpoints: GET /perfil, GET /medios-pago, GET /subastas?estado=en_vivo, GET /subastas?estado=programada
 
-- Header con fondo primaryDark: saludo con nombre del usuario, badges de categoría y cantidad de medios, campana de notificaciones
-- Sección "En vivo ahora": FlatList horizontal de subastas activas, card con título, piezas, categoría, badge de moneda y botón Entrar
-- Sección "Próximas": FlatList horizontal de subastas programadas con imagen placeholder, fecha y título
-- Los 4 endpoints se llaman en paralelo con Promise.all al montar la pantalla
+- En modo invitado (status === 'pending'): solo carga subastas, muestra "Bienvenido" y banner amarillo de cuenta en revisión
+- En modo autenticado: carga los 4 endpoints en paralelo con Promise.all, muestra saludo con nombre, badges de categoría y medios
+- Sección "En vivo ahora": FlatList horizontal de subastas activas
+- Sección "Próximas": FlatList horizontal de subastas programadas
 
 ### src/screens/auctions/AuctionsScreen.js
 Endpoints: GET /subastas?estado=en_vivo, GET /subastas?estado=finalizada
@@ -315,7 +351,7 @@ Endpoint: GET /subastas/:id
 - Muestra título, badges de categoría y moneda, tabla de info (fecha, hora, ubicación, rematador)
 - fecha y hora se parsean del ISO timestamp que devuelve el backend
 - Botón "Ver catálogo" conectado → navega a Catalog pasando subastaId y moneda
-- Botón "Entrar a subasta" pendiente de conectar
+- Botón "Entrar a subasta": muestra GuestModal si status === 'pending'; lógica de sala pendiente de conectar para usuarios autenticados
 
 ### src/screens/auctions/CatalogScreen.js
 Endpoint: GET /subastas/:id/catalogo
@@ -373,6 +409,43 @@ Endpoint: GET /solicitudes-venta/:id
 - Carrusel de imágenes con dots (imágenes autenticadas con Bearer token en header de Image)
 - Muestra: nombre del bien, cantidad de fotos · tipo, fecha de envío, mensaje "Esperando evaluación..."
 - Implementado para estados enviada/en_revision — otros estados pendientes
+
+### src/screens/mediosPago/RegistrarMedioPagoScreen.js
+Sin endpoint propio — es un selector estático con 4 opciones que navegan a los formularios correspondientes.
+- Primera pantalla de MedioPagoNavigator
+- También accesible desde ProfileScreen (pendiente de conectar)
+- Opciones: Cuenta bancaria nacional, Cuenta bancaria extranjera, Cheque certificado, Tarjeta de crédito
+
+### src/screens/mediosPago/CuentaNacionalScreen.js
+Endpoint: POST /medios-pago/cuenta-nacional
+
+- Formulario: CBU (22 dígitos), Banco (picker), Tipo de cuenta (picker: caja_ahorro | cuenta_corriente), Titular, CUIT/CUIL, Alias (opcional)
+- Al éxito navega a RegistroCompleto
+
+### src/screens/mediosPago/CuentaExteriorScreen.js
+Endpoint: POST /medios-pago/cuenta-exterior
+
+- Formulario: IBAN, SWIFT/BIC, Banco (texto libre), País del banco (picker), Moneda (picker: USD | EUR | GBP), Titular
+- Al éxito navega a RegistroCompleto
+
+### src/screens/mediosPago/ChequeScreen.js
+Endpoint: POST /medios-pago/cheque
+
+- Formulario: Nro de cheque, Banco emisor (picker), Monto certificado, Moneda (picker: ARS | USD), Fecha de emisión (YYYY-MM-DD)
+- Al éxito navega a RegistroCompleto
+
+### src/screens/mediosPago/TarjetaScreen.js
+Endpoint: POST /medios-pago/tarjeta
+
+- Formulario: Número, Titular, Código de seguridad (CVV, secureTextEntry), Vencimiento (MM/AA)
+- El CVV nunca se persiste en el backend — solo se usan los últimos 4 dígitos del número
+- Al éxito navega a RegistroCompleto
+
+### src/screens/mediosPago/RegistroCompletoScreen.js
+Sin endpoint — lee categoría del usuario desde AuthContext.
+
+- Pantalla de bienvenida post-onboarding: círculo OK, título, categoría y cantidad de medios
+- Botón "Comenzar" llama completeOnboarding() → status pasa a authenticated → RootNavigator muestra AppNavigator
 
 ### src/screens/profile/ProfileScreen.js
 Endpoints: GET /perfil, PUT /perfil/foto, GET /perfil/foto

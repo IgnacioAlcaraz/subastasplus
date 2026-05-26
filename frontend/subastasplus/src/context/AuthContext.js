@@ -67,6 +67,21 @@ export function AuthProvider({ children }) {
     setStatus('authenticated');
   }
 
+  async function startMedioPagoOnboarding(tokenValue, userData) {
+    await AsyncStorage.setItem('token', tokenValue);
+    await AsyncStorage.setItem('user', JSON.stringify(userData));
+    await AsyncStorage.removeItem('tokenSeguimiento');
+    setToken(tokenValue);
+    setUser(userData);
+    setTokenSeguimiento(null);
+    setPendingData(null);
+    setStatus('requires_medio_pago');
+  }
+
+  function completeOnboarding() {
+    setStatus('authenticated');
+  }
+
   async function savePendingRegistration(tokenSeg) {
     await AsyncStorage.setItem('tokenSeguimiento', tokenSeg);
     setTokenSeguimiento(tokenSeg);
@@ -91,6 +106,8 @@ export function AuthProvider({ children }) {
       login,
       logout,
       savePendingRegistration,
+      startMedioPagoOnboarding,
+      completeOnboarding,
       isAuthenticated: status === 'authenticated',
     }}>
       {children}
