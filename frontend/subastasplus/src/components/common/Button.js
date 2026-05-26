@@ -30,6 +30,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  danger: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.error,
+  },
   disabled: {
     opacity: 0.5,
   },
@@ -41,5 +46,8 @@ const styles = StyleSheet.create({
   },
   outlineText: {
     color: colors.textSecondary,
+  },
+  dangerText: {
+    color: colors.error,
   },
 });
