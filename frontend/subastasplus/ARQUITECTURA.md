@@ -135,7 +135,16 @@ Tab navigator con 4 tabs. En modo invitado (status === 'pending') los tabs Venta
 - Home → HomeScreen
 - Auctions → AuctionsNavigator (stack interno)
 - Ventas → VentasNavigator (stack interno)
-- Profile → ProfileScreen
+- Profile → ProfileNavigator (stack interno)
+
+### src/navigation/ProfileNavigator.js
+Stack navigator dentro del tab Perfil.
+- ProfileHome → ProfileScreen
+- MediosPago → MediosPagoScreen
+- cuenta-nacional → CuentaNacionalScreen
+- cuenta-exterior → CuentaExteriorScreen
+- tarjeta → TarjetaScreen
+- cheque → ChequeScreen
 
 ### src/navigation/AuctionsNavigator.js
 Stack navigator dentro del tab Subastas. Permite navegar al detalle sin perder el tab bar.
@@ -260,6 +269,14 @@ Props: label, value, onSelect, opciones, error
 - Abre un bottom sheet modal con la lista de opciones
 - error — texto de error en rojo debajo del campo, borde rojo cuando está presente
 - Usado en CuentaNacionalScreen y CuentaExteriorScreen (y futuros formularios de medios de pago)
+
+### src/components/common/CardMedioPago.js
+Props: item
+
+- Muestra una card con ícono circular, título mascarado (ej: `Cta. HSBC ***890`), subtítulo del tipo, y badge de verificación
+- Badge verde "Verificado" si `item.verificado === 'si'`; gris "Pendiente" en caso contrario
+- Lógica de título y subtítulo encapsulada por tipo: cuenta_nacional, cuenta_exterior, tarjeta, cheque
+- Usado en MediosPagoScreen
 
 ### src/components/common/GuestModal.js
 Props: visible, onClose
@@ -420,8 +437,8 @@ Endpoint: GET /solicitudes-venta/:id
 
 ### src/screens/mediosPago/RegistrarMedioPagoScreen.js
 Sin endpoint propio — es un selector estático con 4 opciones que navegan a los formularios correspondientes.
-- Primera pantalla de MedioPagoNavigator
-- También accesible desde ProfileScreen (pendiente de conectar)
+- Primera pantalla de MedioPagoNavigator (solo en el flujo de onboarding)
+- El flujo desde perfil usa MediosPagoScreen en su lugar (con FAB + modal)
 - Opciones: Cuenta bancaria nacional, Cuenta bancaria extranjera, Cheque certificado, Tarjeta de crédito
 
 ### src/screens/mediosPago/CuentaNacionalScreen.js
@@ -431,7 +448,7 @@ Endpoint: POST /medios-pago/cuenta-nacional
 - CBU: solo acepta dígitos, máximo 22. CUIT/CUIL: auto-formato XX-XXXXXXXX-X al tipear
 - Validaciones: CBU exactamente 22 dígitos, CUIT/CUIL exactamente 11 dígitos
 - Errores inline bajo cada campo
-- Al éxito navega a RegistroCompleto
+- Al éxito navega a `route.params?.successRoute ?? 'RegistroCompleto'`
 
 ### src/screens/mediosPago/CuentaExteriorScreen.js
 Endpoint: POST /medios-pago/cuenta-exterior
@@ -440,7 +457,7 @@ Endpoint: POST /medios-pago/cuenta-exterior
 - SWIFT: se convierte automáticamente a mayúsculas al tipear
 - Validaciones: SWIFT 8-11 caracteres, todos los campos requeridos
 - Errores inline bajo cada campo
-- Al éxito navega a RegistroCompleto
+- Al éxito navega a `route.params?.successRoute ?? 'RegistroCompleto'`
 
 ### src/screens/mediosPago/ChequeScreen.js
 Endpoint: POST /medios-pago/cheque
@@ -449,7 +466,7 @@ Endpoint: POST /medios-pago/cheque
 - Fecha de emisión: auto-formato AAAA-MM-DD al tipear (solo números, guiones automáticos)
 - Validaciones: monto > 0, fecha en formato AAAA-MM-DD válido
 - Errores inline bajo cada campo
-- Al éxito navega a RegistroCompleto
+- Al éxito navega a `route.params?.successRoute ?? 'RegistroCompleto'`
 
 ### src/screens/mediosPago/TarjetaScreen.js
 Endpoint: POST /medios-pago/tarjeta
@@ -460,7 +477,7 @@ Endpoint: POST /medios-pago/tarjeta
 - Validaciones: 16 dígitos, CVV 3-4 dígitos, mes 01-12
 - El CVV nunca se persiste en el backend — solo se usan los últimos 4 dígitos del número
 - Errores inline bajo cada campo
-- Al éxito navega a RegistroCompleto
+- Al éxito navega a `route.params?.successRoute ?? 'RegistroCompleto'`
 
 ### src/screens/mediosPago/RegistroCompletoScreen.js
 Sin endpoint — lee categoría del usuario desde AuthContext.
@@ -473,10 +490,19 @@ Endpoints: GET /perfil, PUT /perfil/foto, GET /perfil/foto
 
 - Header con fondo primaryDark: avatar circular touchable, nombre completo en blanco, badge de categoría semi-transparente
 - Avatar: si el usuario tiene foto (perfil.fotoPerfil truthy) carga GET /perfil/foto con Bearer token en headers; si falla o no hay foto muestra iniciales (nombre[0]+apellido[0]) como fallback
-- Al tocar el avatar abre expo-image-picker (galería, recorte cuadrado 1:1, quality 0.7); sube base64 a PUT /perfil/foto y refresca la imagen con un fotoKey timestamp para invalidar caché
+- Al tocar el avatar abre expo-image-picker (cámara, recorte cuadrado 1:1, quality 0.5); sube base64 a PUT /perfil/foto y refresca la imagen
 - Badge verde (colors.primary) en la esquina inferior derecha del avatar indica que es editable
-- Card blanca con ítems de menú (ProfileMenuItem): Medios de pago, Historial compras, Historial ventas, Métricas, Multa a pagar — cada uno navega a su pantalla futura
-- Botón "Cerrar sesión" fijo en la parte inferior con Button variant="outline", llama a logout() del AuthContext
+- Card blanca con ítems de menú (ProfileMenuItem): Medios de pago navega a MediosPagoScreen; el resto (Historial compras, Historial ventas, Métricas, Multa a pagar) pendientes de conectar
+- Botón "Cerrar sesión" fijo en la parte inferior con Button variant="danger", llama a logout() del AuthContext
+
+### src/screens/mediosPago/MediosPagoScreen.js
+Endpoint: GET /medios-pago
+
+- Accesible desde ProfileScreen → ítem "Medios de pago"
+- FlatList de medios registrados usando CardMedioPago; pull to refresh
+- Estado vacío: texto "Sin medios de pago / Tocá + para agregar uno"
+- FAB "+" en la esquina inferior derecha abre un Modal bottom sheet con 4 opciones
+- Cada opción navega al formulario correspondiente pasando `{ successRoute: 'MediosPago' }` para que al guardar vuelva a esta lista
 
 ---
 
