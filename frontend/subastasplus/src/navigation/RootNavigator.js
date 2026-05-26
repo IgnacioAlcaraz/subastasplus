@@ -18,8 +18,7 @@ export default function RootNavigator() {
     );
   }
 
-  if (status === 'authenticated') return <AppNavigator />;
-  if (status === 'pending') return <AppNavigator />;
+  if (['authenticated', 'pending', 'guest'].includes(status)) return <AppNavigator />;
   if (status === 'requires_clave') return <CreatePasswordScreen />;
   if (status === 'requires_medio_pago') return <MedioPagoNavigator />;
   return <AuthNavigator />;

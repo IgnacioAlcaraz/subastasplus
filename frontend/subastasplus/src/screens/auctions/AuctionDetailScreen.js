@@ -28,7 +28,7 @@ function formatHora(isoString) {
 
 export default function AuctionDetailScreen({ navigation, route }) {
   const { id } = route.params;
-  const { status } = useAuth();
+  const { status, isGuest, exitGuest } = useAuth();
   const [subasta, setSubasta] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -119,16 +119,20 @@ export default function AuctionDetailScreen({ navigation, route }) {
         <TouchableOpacity
           style={styles.botonPrimario}
           onPress={() => {
-            if (status === 'pending') {
-              setModalVisible(true);
-            }
+            if (isGuest) setModalVisible(true);
           }}
         >
           <Text style={styles.botonPrimarioTexto}>Entrar a subasta</Text>
         </TouchableOpacity>
       </ScrollView>
 
-      <GuestModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+      <GuestModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        variant={status}
+        onLogin={() => { setModalVisible(false); exitGuest('Login'); }}
+        onRegister={() => { setModalVisible(false); exitGuest('Register'); }}
+      />
     </SafeAreaView>
   );
 }

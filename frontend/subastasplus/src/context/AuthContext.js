@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { verificarToken } from '../api/registro';
+import { setPendingAuthRoute } from '../navigation/pendingAuthRoute';
 
 const AuthContext = createContext(null);
 
@@ -100,6 +101,15 @@ export function AuthProvider({ children }) {
     setStatus('unauthenticated');
   }
 
+  function continueAsGuest() {
+    setStatus('guest');
+  }
+
+  function exitGuest(route = 'Login') {
+    setPendingAuthRoute(route);
+    setStatus('unauthenticated');
+  }
+
   return (
     <AuthContext.Provider value={{
       status,
@@ -112,7 +122,10 @@ export function AuthProvider({ children }) {
       savePendingRegistration,
       startMedioPagoOnboarding,
       completeOnboarding,
+      continueAsGuest,
+      exitGuest,
       isAuthenticated: status === 'authenticated',
+      isGuest: status === 'pending' || status === 'guest',
     }}>
       {children}
     </AuthContext.Provider>

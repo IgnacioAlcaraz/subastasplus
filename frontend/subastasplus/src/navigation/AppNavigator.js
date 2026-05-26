@@ -11,13 +11,13 @@ import { colors } from '../constants';
 const Tab = createBottomTabNavigator();
 
 export default function AppNavigator() {
-  const { status } = useAuth();
+  const { status, isGuest, exitGuest } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
 
   function guestListener() {
     return {
       tabPress: (e) => {
-        if (status === 'pending') {
+        if (isGuest) {
           e.preventDefault();
           setModalVisible(true);
         }
@@ -50,7 +50,13 @@ export default function AppNavigator() {
         <Tab.Screen name="Ventas" component={VentasNavigator} options={{ title: 'Vender' }} listeners={guestListener()} />
         <Tab.Screen name="Profile" component={ProfileNavigator} options={{ title: 'Perfil' }} listeners={guestListener()} />
       </Tab.Navigator>
-      <GuestModal visible={modalVisible} onClose={() => setModalVisible(false)} />
+      <GuestModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        variant={status}
+        onLogin={() => { setModalVisible(false); exitGuest('Login'); }}
+        onRegister={() => { setModalVisible(false); exitGuest('Register'); }}
+      />
     </>
   );
 }

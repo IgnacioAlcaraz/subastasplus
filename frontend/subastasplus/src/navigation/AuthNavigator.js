@@ -6,12 +6,13 @@ import ForgotPasswordScreen from "../screens/auth/ForgotPasswordScreen";
 import VerifyCodeScreen from "../screens/auth/VerifyCodeScreen";
 import ResetPasswordScreen from "../screens/auth/ResetPasswordScreen";
 import PendingApprovalScreen from "../screens/auth/PendingApprovalScreen";
+import { consumePendingAuthRoute } from "./pendingAuthRoute";
 
 const Stack = createStackNavigator();
 
 export default function AuthNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={consumePendingAuthRoute()}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />

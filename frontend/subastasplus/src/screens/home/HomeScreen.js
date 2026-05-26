@@ -18,8 +18,7 @@ import { getSubastas } from "../../api/subastas";
 import AuctionCard from "../../components/common/AuctionCard";
 
 export default function HomeScreen({ navigation }) {
-  const { status } = useAuth();
-  const isGuest = status === 'pending';
+  const { status, isGuest } = useAuth();
 
   const [perfil, setPerfil] = useState(null);
   const [medios, setMedios] = useState([]);
@@ -97,7 +96,7 @@ export default function HomeScreen({ navigation }) {
           )}
         </View>
 
-        {isGuest && (
+        {status === 'pending' && (
           <View style={styles.banner}>
             <Text style={styles.bannerTexto}>
               Tu cuenta está siendo revisada. Te avisaremos cuando sea aprobada.

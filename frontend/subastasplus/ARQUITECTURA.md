@@ -68,17 +68,20 @@ Estilos de texto reutilizables: h1, h2, h3, body, bodySmall, caption, button, la
 Maneja la sesión del usuario en toda la app.
 
 *Qué expone:*
-- status — estado actual: loading | unauthenticated | pending | requires_clave | requires_medio_pago | authenticated
+- status — estado actual: loading | unauthenticated | guest | pending | requires_clave | requires_medio_pago | authenticated
 - token — JWT del usuario logueado
 - user — objeto con datos del usuario (id, nombre, apellido, email, categoria, estado, cantidadMediosPago)
 - tokenSeguimiento — token de registro pendiente de aprobación
 - pendingData — { email, nombre, categoria } cuando el usuario fue aprobado pero no tiene clave
-- isAuthenticated — booleano derivado de si hay token
+- isAuthenticated — booleano derivado: status === 'authenticated'
+- isGuest — booleano derivado: status === 'pending' || status === 'guest'. Usar en pantallas para omitir llamadas a endpoints que requieren token
 - login(token, user) — guarda JWT, limpia tokenSeguimiento, cambia status a authenticated
 - logout() — borra token, usuario y auth_status de AsyncStorage
 - savePendingRegistration(tokenSeguimiento) — guarda token en AsyncStorage, cambia status a pending
 - startMedioPagoOnboarding(token, user) — guarda JWT y persiste auth_status='requires_medio_pago' en AsyncStorage, cambia status a requires_medio_pago
 - completeOnboarding() — borra auth_status de AsyncStorage, cambia status a authenticated
+- continueAsGuest() — cambia status a guest sin persistencia (ephemeral)
+- exitGuest(route?) — escribe el destino en pendingAuthRoute y cambia status a unauthenticated. route puede ser 'Login' (default) o 'Register'
 
 *Persistencia en AsyncStorage:*
 - token — JWT del usuario autenticado
@@ -96,10 +99,13 @@ Maneja la sesión del usuario en toda la app.
 |---|---|---|
 | loading | App recién abre, leyendo AsyncStorage | Spinner |
 | unauthenticated | Sin token ni tokenSeguimiento | AuthNavigator |
-| pending | Tiene tokenSeguimiento, sin token | AppNavigator (invitado) |
+| guest | Tocó "Continuar como invitado" en Login (ephemeral, no persiste) | AppNavigator (invitado anónimo) |
+| pending | Tiene tokenSeguimiento, esperando aprobación | AppNavigator (invitado pendiente) |
 | requires_clave | Token verificado, usuario aprobado sin clave | CreatePasswordScreen |
-| requires_medio_pago | JWT obtenido, pero cantidadMediosPago === 0. Estado persistido en AsyncStorage (auth_status) para sobrevivir cierres de app | RegistrarMedioPagoScreen |
+| requires_medio_pago | JWT obtenido, pero cantidadMediosPago === 0. Estado persistido en AsyncStorage (auth_status) para sobrevivir cierres de app | MedioPagoNavigator |
 | authenticated | Tiene JWT | AppNavigator (completo) |
+
+`guest` y `pending` son ambos modo invitado — `isGuest` los agrupa. Se diferencian solo en el contenido del GuestModal.
 
 *Transiciones automáticas al abrir la app:*
 - Encuentra tokenSeguimiento → llama a POST /registro/verificar-token
@@ -115,14 +121,19 @@ Maneja la sesión del usuario en toda la app.
 ### src/navigation/RootNavigator.js
 Punto de entrada de la navegación. Rutea según status del AuthContext:
 - loading → Spinner
-- authenticated → AppNavigator
-- pending → AppNavigator (sin token, modo invitado)
+- authenticated | pending | guest → AppNavigator
 - requires_clave → CreatePasswordScreen (directo, sin navigator)
 - requires_medio_pago → MedioPagoNavigator
 - unauthenticated → AuthNavigator
 
+### src/navigation/pendingAuthRoute.js
+Módulo singleton de una sola responsabilidad: almacenar el destino de navegación para el próximo mount de AuthNavigator.
+- setPendingAuthRoute(route) — escribe el destino ('Login' | 'Register')
+- consumePendingAuthRoute() — devuelve el destino y lo resetea a 'Login'
+Usado por exitGuest() en AuthContext para que AuthNavigator arranque en la pantalla correcta sin mezclar lógica de navegación en el contexto de auth.
+
 ### src/navigation/AuthNavigator.js
-Stack sin header. Pantallas:
+Stack sin header. Lee la ruta inicial con consumePendingAuthRoute() al montarse — por defecto 'Login', o 'Register' si el usuario viene de exitGuest('Register').
 - Login → LoginScreen
 - Register → RegisterScreen
 - ForgotPassword → ForgotPasswordScreen
@@ -131,7 +142,7 @@ Stack sin header. Pantallas:
 - PendingApproval → PendingApprovalScreen
 
 ### src/navigation/AppNavigator.js
-Tab navigator con 4 tabs. En modo invitado (status === 'pending') los tabs Ventas y Perfil interceptan el tap y muestran GuestModal.
+Tab navigator con 4 tabs. En modo invitado (isGuest del contexto) los tabs Ventas y Perfil interceptan el tap y muestran GuestModal con la variante correspondiente al status actual.
 - Home → HomeScreen
 - Auctions → AuctionsNavigator (stack interno)
 - Ventas → VentasNavigator (stack interno)
@@ -279,12 +290,13 @@ Props: item
 - Usado en MediosPagoScreen
 
 ### src/components/common/GuestModal.js
-Props: visible, onClose
+Props: visible, onClose, variant ('pending' | 'guest'), onLogin, onRegister
 
-- Modal semitransparente centrado en pantalla
-- Informa al usuario que su cuenta está siendo revisada
-- Botón "Entendido" llama a onClose
-- Usado en AppNavigator (tabs restringidos) y pantallas con acciones que requieren cuenta aprobada
+- Modal semitransparente centrado en pantalla con un único árbol JSX
+- Textos centralizados en el objeto CONTENT, indexado por variant
+- variant 'pending': título "Cuenta en revisión", botón único "Entendido" → onClose
+- variant 'guest': título "Acción no disponible", dos botones en fila → "Iniciar Sesión" (onLogin) y "Registrarse" (onRegister)
+- Usado en AppNavigator (tabs restringidos) y AuctionDetailScreen ("Entrar a subasta")
 
 ---
 
@@ -356,7 +368,8 @@ Devuelve todos los países de la tabla paises. Sin autenticación requerida.
 ### src/screens/home/HomeScreen.js
 Endpoints: GET /perfil, GET /medios-pago, GET /subastas?estado=en_vivo, GET /subastas?estado=programada
 
-- En modo invitado (status === 'pending'): solo carga subastas, muestra "Bienvenido" y banner amarillo de cuenta en revisión
+- En modo invitado (isGuest): solo carga subastas, muestra "Bienvenido" y omite llamadas a /perfil y /medios-pago
+- Banner amarillo "cuenta en revisión" solo cuando status === 'pending' (no para guest anónimo)
 - En modo autenticado: carga los 4 endpoints en paralelo con Promise.all, muestra saludo con nombre, badges de categoría y medios
 - Sección "En vivo ahora": FlatList horizontal de subastas activas
 - Sección "Próximas": FlatList horizontal de subastas programadas
@@ -376,7 +389,7 @@ Endpoint: GET /subastas/:id
 - Muestra título, badges de categoría y moneda, tabla de info (fecha, hora, ubicación, rematador)
 - fecha y hora se parsean del ISO timestamp que devuelve el backend
 - Botón "Ver catálogo" conectado → navega a Catalog pasando subastaId y moneda
-- Botón "Entrar a subasta": muestra GuestModal si status === 'pending'; lógica de sala pendiente de conectar para usuarios autenticados
+- Botón "Entrar a subasta": muestra GuestModal (variant=status) si isGuest; lógica de sala pendiente de conectar para usuarios autenticados
 
 ### src/screens/auctions/CatalogScreen.js
 Endpoint: GET /subastas/:id/catalogo
