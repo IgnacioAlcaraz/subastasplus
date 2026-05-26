@@ -11,12 +11,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, typography } from "../../constants";
+import { useAuth } from "../../context/AuthContext";
 import { getPerfil } from "../../api/perfil";
 import { getMediosPago } from "../../api/mediosPago";
 import { getSubastas } from "../../api/subastas";
 import AuctionCard from "../../components/common/AuctionCard";
 
 export default function HomeScreen({ navigation }) {
+  const { status } = useAuth();
+  const isGuest = status === 'pending';
+
   const [perfil, setPerfil] = useState(null);
   const [medios, setMedios] = useState([]);
   const [subastasEnVivo, setSubastasEnVivo] = useState([]);
@@ -26,16 +30,25 @@ export default function HomeScreen({ navigation }) {
   useEffect(() => {
     async function cargarDatos() {
       try {
-        const [datosPerfil, datosMedios, datosEnVivo, datosProximas] = await Promise.all([
-          getPerfil(),
-          getMediosPago(),
-          getSubastas("en_vivo"),
-          getSubastas("programada"),
-        ]);
-        setPerfil(datosPerfil);
-        setMedios(datosMedios);
-        setSubastasEnVivo(datosEnVivo.data);
-        setProximasSubastas(datosProximas.data);
+        if (isGuest) {
+          const [datosEnVivo, datosProximas] = await Promise.all([
+            getSubastas("en_vivo"),
+            getSubastas("programada"),
+          ]);
+          setSubastasEnVivo(datosEnVivo.data);
+          setProximasSubastas(datosProximas.data);
+        } else {
+          const [datosPerfil, datosMedios, datosEnVivo, datosProximas] = await Promise.all([
+            getPerfil(),
+            getMediosPago(),
+            getSubastas("en_vivo"),
+            getSubastas("programada"),
+          ]);
+          setPerfil(datosPerfil);
+          setMedios(datosMedios);
+          setSubastasEnVivo(datosEnVivo.data);
+          setProximasSubastas(datosProximas.data);
+        }
       } catch (error) {
         Alert.alert("Error", "No se pudieron cargar los datos");
       } finally {
@@ -63,22 +76,34 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             <View>
-              <Text style={styles.saludo}>Hola, {perfil?.nombre ?? "..."}</Text>
+              <Text style={styles.saludo}>
+                {isGuest ? "Bienvenido" : `Hola, ${perfil?.nombre ?? "..."}`}
+              </Text>
               <Text style={styles.headerTitulo}>SubastaPlus</Text>
             </View>
             <TouchableOpacity>
               <Text style={styles.campana}>🔔</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.badgesRow}>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>Cat: {perfil?.categoria ?? "-"}</Text>
+          {!isGuest && (
+            <View style={styles.badgesRow}>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>Cat: {perfil?.categoria ?? "-"}</Text>
+              </View>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{medios.length} medios</Text>
+              </View>
             </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{medios.length} medios</Text>
-            </View>
-          </View>
+          )}
         </View>
+
+        {isGuest && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerTexto}>
+              Tu cuenta está siendo revisada. Te avisaremos cuando sea aprobada.
+            </Text>
+          </View>
+        )}
 
         {enVivoFiltradas.length > 0 && (
           <View style={styles.seccion}>
@@ -182,5 +207,15 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.textPrimary,
     marginBottom: 12,
+  },
+  banner: {
+    backgroundColor: colors.warning,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  bannerTexto: {
+    ...typography.bodySmall,
+    color: colors.surface,
+    textAlign: 'center',
   },
 });

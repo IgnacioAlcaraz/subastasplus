@@ -10,7 +10,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, typography } from "../../constants";
+import { useAuth } from "../../context/AuthContext";
 import { getSubastaById } from "../../api/subastas";
+import GuestModal from "../../components/common/GuestModal";
 
 function formatFecha(isoString) {
   if (!isoString) return "-";
@@ -26,8 +28,10 @@ function formatHora(isoString) {
 
 export default function AuctionDetailScreen({ navigation, route }) {
   const { id } = route.params;
+  const { status } = useAuth();
   const [subasta, setSubasta] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     async function cargarSubasta() {
@@ -112,10 +116,19 @@ export default function AuctionDetailScreen({ navigation, route }) {
           <Text style={styles.botonSecundarioTexto}>Ver catálogo</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.botonPrimario}>
+        <TouchableOpacity
+          style={styles.botonPrimario}
+          onPress={() => {
+            if (status === 'pending') {
+              setModalVisible(true);
+            }
+          }}
+        >
           <Text style={styles.botonPrimarioTexto}>Entrar a subasta</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <GuestModal visible={modalVisible} onClose={() => setModalVisible(false)} />
     </SafeAreaView>
   );
 }

@@ -13,7 +13,7 @@ function capitalize(str) {
 }
 
 export default function CreatePasswordScreen() {
-  const { tokenSeguimiento, pendingData, login: saveSession } = useAuth();
+  const { tokenSeguimiento, pendingData, login: saveSession, startMedioPagoOnboarding } = useAuth();
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,11 @@ export default function CreatePasswordScreen() {
     setLoading(true);
     try {
       const { token, usuario } = await registroEtapa2(tokenSeguimiento, pendingData.email, password);
-      await saveSession(token, usuario);
+      if (usuario.cantidadMediosPago === 0) {
+        await startMedioPagoOnboarding(token, usuario);
+      } else {
+        await saveSession(token, usuario);
+      }
     } catch (error) {
       Alert.alert('Error', error.message);
     } finally {
