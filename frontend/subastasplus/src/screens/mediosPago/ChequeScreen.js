@@ -39,25 +39,6 @@ function validar({ numeroCheque, banco, monto, moneda, fechaEmision }) {
   return errs;
 }
 
-function formatFecha(text) {
-  const digits = text.replace(/\D/g, '').slice(0, 8);
-  if (digits.length <= 4) return digits;
-  if (digits.length <= 6) return digits.slice(0, 4) + '-' + digits.slice(4);
-  return digits.slice(0, 4) + '-' + digits.slice(4, 6) + '-' + digits.slice(6);
-}
-
-function validar({ numeroCheque, banco, monto, moneda, fechaEmision }) {
-  const errs = {};
-  if (!numeroCheque.trim()) errs.numeroCheque = 'El número de cheque es obligatorio';
-  if (!banco) errs.banco = 'Seleccioná un banco';
-  if (!monto || Number(monto) <= 0) errs.monto = 'El monto debe ser mayor a 0';
-  if (!moneda) errs.moneda = 'Seleccioná una moneda';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaEmision) || isNaN(Date.parse(fechaEmision))) {
-    errs.fechaEmision = 'Formato inválido (AAAA-MM-DD)';
-  }
-  return errs;
-}
-
 export default function ChequeScreen({ navigation, route }) {
   const [numeroCheque, setNumeroCheque] = useState('');
   const [banco, setBanco] = useState('');

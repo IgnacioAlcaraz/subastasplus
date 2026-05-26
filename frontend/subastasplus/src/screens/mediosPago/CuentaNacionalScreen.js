@@ -20,7 +20,6 @@ const TIPOS_CUENTA = [
   { label: 'Cuenta Corriente', value: 'cuenta_corriente' },
 ];
 
-export default function CuentaNacionalScreen({ navigation, route }) {
 function formatCuit(text) {
   const digits = text.replace(/\D/g, '').slice(0, 11);
   if (digits.length <= 2) return digits;
@@ -38,7 +37,7 @@ function validar({ cbu, banco, tipoCuenta, titular, cuitCuil }) {
   return errs;
 }
 
-export default function CuentaNacionalScreen({ navigation }) {
+export default function CuentaNacionalScreen({ navigation, route }) {
   const [cbu, setCbu] = useState('');
   const [banco, setBanco] = useState('');
   const [tipoCuenta, setTipoCuenta] = useState('');
@@ -156,5 +155,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
-}

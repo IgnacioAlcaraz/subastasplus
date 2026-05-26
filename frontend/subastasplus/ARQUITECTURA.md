@@ -144,7 +144,7 @@ Stack sin header. Lee la ruta inicial con consumePendingAuthRoute() al montarse 
 ### src/navigation/AppNavigator.js
 Tab navigator con 4 tabs. En modo invitado (isGuest del contexto) los tabs Ventas y Perfil interceptan el tap y muestran GuestModal con la variante correspondiente al status actual.
 - Home → HomeScreen
-- Auctions → AuctionsNavigator (stack interno)
+- Auctions → AuctionsNavigator (stack interno). Listener custom: resetea al AuctionsList al tocar el tab para evitar quedar en una pantalla de detalle
 - Ventas → VentasNavigator (stack interno)
 - Profile → ProfileNavigator (stack interno)
 
