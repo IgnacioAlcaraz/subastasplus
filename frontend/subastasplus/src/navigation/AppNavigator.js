@@ -36,7 +36,17 @@ export default function AppNavigator() {
         }}
       >
         <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
-        <Tab.Screen name="Auctions" component={AuctionsNavigator} options={{ title: 'Subastas' }} />
+        <Tab.Screen
+          name="Auctions"
+          component={AuctionsNavigator}
+          options={{ title: 'Subastas' }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              e.preventDefault();
+              navigation.navigate('Auctions', { screen: 'AuctionsList' });
+            },
+          })}
+        />
         <Tab.Screen name="Ventas" component={VentasNavigator} options={{ title: 'Vender' }} listeners={guestListener()} />
         <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Perfil' }} listeners={guestListener()} />
       </Tab.Navigator>
