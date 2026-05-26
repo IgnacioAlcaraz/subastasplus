@@ -20,7 +20,7 @@ const MONEDAS = [
   { label: 'USD', value: 'USD' },
 ];
 
-export default function ChequeScreen({ navigation }) {
+export default function ChequeScreen({ navigation, route }) {
   const [numeroCheque, setNumeroCheque] = useState('');
   const [banco, setBanco] = useState('');
   const [monto, setMonto] = useState('');
@@ -43,7 +43,7 @@ export default function ChequeScreen({ navigation }) {
         moneda,
         fechaEmision,
       });
-      navigation.navigate('RegistroCompleto');
+      navigation.navigate(route.params?.successRoute ?? 'RegistroCompleto');
     } catch (error) {
       Alert.alert('Error', error.message);
     } finally {

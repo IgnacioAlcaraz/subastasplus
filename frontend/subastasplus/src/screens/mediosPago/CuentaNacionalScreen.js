@@ -20,7 +20,7 @@ const TIPOS_CUENTA = [
   { label: 'Cuenta Corriente', value: 'cuenta_corriente' },
 ];
 
-export default function CuentaNacionalScreen({ navigation }) {
+export default function CuentaNacionalScreen({ navigation, route }) {
   const [cbu, setCbu] = useState('');
   const [banco, setBanco] = useState('');
   const [tipoCuenta, setTipoCuenta] = useState('');
@@ -38,7 +38,7 @@ export default function CuentaNacionalScreen({ navigation }) {
     setLoading(true);
     try {
       await agregarCuentaNacional({ banco, cbu, cuitCuil, tipoCuenta, titular, alias });
-      navigation.navigate('RegistroCompleto');
+      navigation.navigate(route.params?.successRoute ?? 'RegistroCompleto');
     } catch (error) {
       Alert.alert('Error', error.message);
     } finally {

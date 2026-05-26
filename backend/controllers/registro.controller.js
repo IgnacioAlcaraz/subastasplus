@@ -126,12 +126,30 @@ exports.etapa2 = asyncHandler(async (req, res) => {
   }
 
   const tokenHash = tokens.sha256(tokenSeguimiento);
-  const acceso = await ClientesAcceso.findOne({ token_seguimiento_hash: tokenHash });
-  if (!acceso || acceso.email !== email) {
+  let acceso = await ClientesAcceso.findOne({ token_seguimiento_hash: tokenHash });
+
+  if (!acceso) {
+    // El hash puede haberse borrado si etapa2 ya corrió. Intentar por email para dar mejor error.
+    const accesoPorEmail = await ClientesAcceso.findOne({ email: email.trim() });
+    if (accesoPorEmail?.password_hash) {
+      throw new HttpError(
+        400,
+        "REGISTRO_YA_ACTIVO",
+        "Ya creaste tu clave. Iniciá sesión con email y contraseña.",
+      );
+    }
+    throw new HttpError(
+      400,
+      "REGISTRO_TOKEN_INVALIDO",
+      "El token de seguimiento no es válido o ya fue utilizado.",
+    );
+  }
+
+  if (acceso.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
     throw new HttpError(
       400,
       "REGISTRO_EMAIL_INVALIDO",
-      "El email ingresado no es válido o ya está en uso por otra cuenta.",
+      "El email ingresado no coincide con el registrado.",
       { campo: "email" },
     );
   }

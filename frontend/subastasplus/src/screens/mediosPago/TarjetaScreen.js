@@ -14,7 +14,7 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import { agregarTarjeta } from '../../api/mediosPago';
 
-export default function TarjetaScreen({ navigation }) {
+export default function TarjetaScreen({ navigation, route }) {
   const [numero, setNumero] = useState('');
   const [titular, setTitular] = useState('');
   const [codigoSeguridad, setCodigoSeguridad] = useState('');
@@ -30,7 +30,7 @@ export default function TarjetaScreen({ navigation }) {
     setLoading(true);
     try {
       await agregarTarjeta({ numero, titular, vencimiento, codigoSeguridad });
-      navigation.navigate('RegistroCompleto');
+      navigation.navigate(route.params?.successRoute ?? 'RegistroCompleto');
     } catch (error) {
       Alert.alert('Error', error.message);
     } finally {

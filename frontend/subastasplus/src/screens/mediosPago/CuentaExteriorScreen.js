@@ -27,7 +27,7 @@ const MONEDAS = [
   { label: 'GBP', value: 'GBP' },
 ];
 
-export default function CuentaExteriorScreen({ navigation }) {
+export default function CuentaExteriorScreen({ navigation, route }) {
   const [iban, setIban] = useState('');
   const [swift, setSwift] = useState('');
   const [banco, setBanco] = useState('');
@@ -45,7 +45,7 @@ export default function CuentaExteriorScreen({ navigation }) {
     setLoading(true);
     try {
       await agregarCuentaExterior({ banco, swift, iban, pais, titular, moneda });
-      navigation.navigate('RegistroCompleto');
+      navigation.navigate(route.params?.successRoute ?? 'RegistroCompleto');
     } catch (error) {
       Alert.alert('Error', error.message);
     } finally {
