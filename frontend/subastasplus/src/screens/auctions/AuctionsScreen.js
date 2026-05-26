@@ -11,43 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, typography } from "../../constants";
 import { getSubastas } from "../../api/subastas";
-
-function formatFecha(isoString) {
-  if (!isoString) return "-";
-  const date = new Date(isoString);
-  return date.toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" }) +
-    " " + date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-}
-
-function CardSubasta({ item, onEntrar }) {
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        {item.estado === "en_vivo" ? (
-          <View style={styles.badgeEnVivo}>
-            <Text style={styles.badgeEnVivoTexto}>● EN VIVO</Text>
-          </View>
-        ) : (
-          <Text style={styles.cardFecha}>{formatFecha(item.fecha)}</Text>
-        )}
-      </View>
-      <Text style={styles.cardTitulo}>{item.titulo}</Text>
-      <Text style={styles.cardSub}>
-        {item.cantidadPiezas} pzs · {item.categoria}
-      </Text>
-      <View style={styles.cardFooter}>
-        <View style={styles.badgeMoneda}>
-          <Text style={styles.badgeMonedaTexto}>{item.moneda}</Text>
-        </View>
-        {item.estado !== "finalizada" && (
-          <TouchableOpacity style={styles.botonEntrar} onPress={onEntrar}>
-            <Text style={styles.botonEntrarTexto}>Entrar</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-    </View>
-  );
-}
+import AuctionCard from "../../components/common/AuctionCard";
 
 export default function AuctionsScreen({ navigation }) {
   const [tabActivo, setTabActivo] = useState("en_vivo");
@@ -116,9 +80,9 @@ export default function AuctionsScreen({ navigation }) {
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.lista}
         renderItem={({ item }) => (
-          <CardSubasta
-            item={item}
-            onEntrar={() => navigation.navigate("AuctionDetail", { id: item.id })}
+          <AuctionCard
+            subasta={item}
+            onPress={() => navigation.navigate("AuctionDetail", { id: item.id })}
           />
         )}
         ListEmptyComponent={
@@ -181,66 +145,6 @@ const styles = StyleSheet.create({
   lista: {
     padding: 20,
     gap: 12,
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardHeader: {
-    marginBottom: 8,
-  },
-  badgeEnVivo: {
-    alignSelf: "flex-start",
-  },
-  badgeEnVivoTexto: {
-    ...typography.caption,
-    color: colors.primary,
-    fontWeight: "600",
-  },
-  cardFecha: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  cardTitulo: {
-    ...typography.label,
-    color: colors.textPrimary,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  cardSub: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: 12,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  badgeMoneda: {
-    backgroundColor: colors.background,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  badgeMonedaTexto: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  botonEntrar: {
-    backgroundColor: colors.primaryDark,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  botonEntrarTexto: {
-    ...typography.button,
-    color: colors.surface,
   },
   vacio: {
     ...typography.body,
