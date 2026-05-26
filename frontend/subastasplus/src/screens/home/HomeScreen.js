@@ -15,12 +15,7 @@ import { useAuth } from "../../context/AuthContext";
 import { getPerfil } from "../../api/perfil";
 import { getMediosPago } from "../../api/mediosPago";
 import { getSubastas } from "../../api/subastas";
-
-function formatFecha(isoString) {
-  if (!isoString) return "-";
-  const date = new Date(isoString);
-  return date.toLocaleDateString("es-AR", { day: "2-digit", month: "short" });
-}
+import AuctionCard from "../../components/common/AuctionCard";
 
 export default function HomeScreen({ navigation }) {
   const { status } = useAuth();
@@ -119,26 +114,14 @@ export default function HomeScreen({ navigation }) {
               horizontal
               showsHorizontalScrollIndicator={false}
               renderItem={({ item }) => (
-                <View style={styles.cardEnVivo}>
-                  <Text style={styles.cardTitulo}>{item.titulo}</Text>
-                  <Text style={styles.cardSub}>
-                    {item.cantidadPiezas} piezas · {item.categoria}
-                  </Text>
-                  <View style={styles.cardFooter}>
-                    <View style={styles.badgeMoneda}>
-                      <Text style={styles.badgeMonedaTexto}>{item.moneda}</Text>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.botonEntrar}
-                      onPress={() => navigation.navigate("Auctions", {
-                        screen: "AuctionDetail",
-                        params: { id: item.id },
-                      })}
-                    >
-                      <Text style={styles.botonEntrarTexto}>Entrar</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
+                <AuctionCard
+                  subasta={item}
+                  variant="featured"
+                  onPress={() => navigation.navigate("Auctions", {
+                    screen: "AuctionDetail",
+                    params: { id: item.id },
+                  })}
+                />
               )}
             />
           </View>
@@ -153,14 +136,14 @@ export default function HomeScreen({ navigation }) {
             horizontal
             showsHorizontalScrollIndicator={false}
             renderItem={({ item }) => (
-              <TouchableOpacity style={styles.cardProxima}>
-                <View style={styles.cardProximaImagen} />
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>Programada</Text>
-                </View>
-                <Text style={styles.cardTitulo}>{item.titulo}</Text>
-                <Text style={styles.cardFecha}>{formatFecha(item.fecha)}</Text>
-              </TouchableOpacity>
+              <AuctionCard
+                subasta={item}
+                variant="compact"
+                onPress={() => navigation.navigate("Auctions", {
+                  screen: "AuctionDetail",
+                  params: { id: item.id },
+                })}
+              />
             )}
           />
         </View>
@@ -224,73 +207,6 @@ const styles = StyleSheet.create({
     ...typography.h3,
     color: colors.textPrimary,
     marginBottom: 12,
-  },
-  cardEnVivo: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    width: 280,
-    marginRight: 12,
-  },
-  cardTitulo: {
-    ...typography.label,
-    color: colors.textPrimary,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  cardSub: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginBottom: 16,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  badgeMoneda: {
-    backgroundColor: colors.background,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  badgeMonedaTexto: {
-    ...typography.caption,
-    color: colors.textSecondary,
-  },
-  botonEntrar: {
-    backgroundColor: colors.primaryDark,
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  botonEntrarTexto: {
-    ...typography.button,
-    color: colors.surface,
-  },
-  cardProxima: {
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 12,
-    width: 160,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardProximaImagen: {
-    backgroundColor: colors.border,
-    height: 90,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  cardFecha: {
-    ...typography.caption,
-    color: colors.textSecondary,
-    marginTop: 2,
   },
   banner: {
     backgroundColor: colors.warning,

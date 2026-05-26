@@ -146,7 +146,7 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         <View style={styles.logoutContainer}>
-          <Button title="Cerrar sesión" variant="outline" onPress={logout} />
+          <Button title="Cerrar sesión" variant="danger" onPress={logout} />
         </View>
       </View>
     </View>
