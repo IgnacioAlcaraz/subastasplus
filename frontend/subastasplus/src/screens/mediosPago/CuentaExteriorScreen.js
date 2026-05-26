@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,12 +14,7 @@ import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import PickerField from '../../components/common/PickerField';
 import { agregarCuentaExterior } from '../../api/mediosPago';
-
-const PAISES = [
-  'Alemania', 'Australia', 'Brasil', 'Canadá', 'Chile', 'China',
-  'España', 'Estados Unidos', 'Francia', 'Italia', 'Japón',
-  'México', 'Paraguay', 'Reino Unido', 'Suiza', 'Uruguay', 'Otro',
-];
+import { getPaises } from '../../api/paises';
 
 const MONEDAS = [
   { label: 'USD', value: 'USD' },
@@ -48,6 +43,13 @@ export default function CuentaExteriorScreen({ navigation, route }) {
   const [titular, setTitular] = useState('');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [paises, setPaises] = useState([]);
+
+  useEffect(() => {
+    getPaises()
+      .then(data => setPaises(data.filter(p => p.nombre !== 'Argentina').map(p => p.nombre)))
+      .catch(() => Alert.alert('Error', 'No se pudieron cargar los países'));
+  }, []);
 
   async function handleRegistrar() {
     const errs = validar({ iban, swift, banco, pais, moneda, titular });
@@ -98,7 +100,7 @@ export default function CuentaExteriorScreen({ navigation, route }) {
           placeholder="HSBC London"
           error={errors.banco}
         />
-        <PickerField label="País del banco" value={pais} onSelect={setPais} opciones={PAISES} error={errors.pais} />
+        <PickerField label="País del banco" value={pais} onSelect={setPais} opciones={paises} error={errors.pais} />
         <PickerField label="Moneda" value={moneda} onSelect={setMoneda} opciones={MONEDAS} error={errors.moneda} />
         <Input
           label="Titular"
