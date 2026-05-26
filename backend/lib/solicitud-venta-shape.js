@@ -7,7 +7,7 @@ function base64ToBytea(b64) {
   return "\\x" + buf.toString("hex");
 }
 
-function solicitudShape({ row, subastaAsignada = null, poliza = null, fotosCount = 0 }) {
+function solicitudShape({ row, subastaAsignada = null, poliza = null, fotosCount = 0, precioVenta = null }) {
   return {
     id: String(row.identificador),
     tipo: row.tipo,
@@ -21,6 +21,7 @@ function solicitudShape({ row, subastaAsignada = null, poliza = null, fotosCount
     curiosidades: row.curiosidades || null,
     declaracionPropiedad: row.declaracion_propiedad === "si",
     estado: row.estado,
+    costoEnvio: row.costo_envio != null ? Number(row.costo_envio) : null,
     motivoRechazo: row.motivo_rechazo || null,
     valorBase: row.valor_base != null ? Number(row.valor_base) : null,
     comisiones: row.comisiones != null ? Number(row.comisiones) : null,
@@ -30,6 +31,7 @@ function solicitudShape({ row, subastaAsignada = null, poliza = null, fotosCount
     polizaSeguro: poliza,
     cuentaCobro: cuentaCobroResumen(row),
     fechaCreacion: row.fecha_creacion || null,
+    precioVenta: precioVenta != null ? Number(precioVenta) : null,
   };
 }
 
@@ -58,6 +60,7 @@ function polizaShape(seguro) {
     id: String(seguro.nro_poliza),
     aseguradora: seguro.compania,
     numeroPoliza: seguro.nro_poliza,
+    tipo: seguro.poliza_combinada === 'si' ? 'Combinada' : 'Individual',
     valorAsegurado: seguro.importe != null ? Number(seguro.importe) : null,
     contactoAseguradora: null, // se completa cuando hay seguros_extension
   };

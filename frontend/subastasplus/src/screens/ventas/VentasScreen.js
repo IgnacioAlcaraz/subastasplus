@@ -6,7 +6,8 @@ import {
 import { colors, typography } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 import { getSolicitudes } from '../../api/solicitudesVenta';
-import { SERVER_URL } from '../../api/client';
+import { SERVER_URL, esErrorServidor } from '../../api/client';
+import ServerErrorScreen from '../../components/common/ServerErrorScreen';
 
 const ESTADO_COLOR = {
   borrador: colors.textDisabled,
@@ -24,12 +25,15 @@ export default function VentasScreen({ navigation }) {
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [errorServidor, setErrorServidor] = useState(false);
 
   const cargar = useCallback(async () => {
+    setErrorServidor(false);
     try {
       const res = await getSolicitudes();
       setSolicitudes(res.data ?? []);
-    } catch {
+    } catch (error) {
+      if (esErrorServidor(error)) setErrorServidor(true);
       setSolicitudes([]);
     }
   }, []);
@@ -37,6 +41,11 @@ export default function VentasScreen({ navigation }) {
   useEffect(() => {
     cargar().finally(() => setLoading(false));
   }, [cargar]);
+
+  function reintentar() {
+    setLoading(true);
+    cargar().finally(() => setLoading(false));
+  }
 
   async function onRefresh() {
     setRefreshing(true);
@@ -84,6 +93,10 @@ export default function VentasScreen({ navigation }) {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  if (errorServidor) {
+    return <ServerErrorScreen onRetry={reintentar} />;
   }
 
   return (

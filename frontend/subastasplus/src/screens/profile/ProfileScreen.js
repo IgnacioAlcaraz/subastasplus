@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Image, TouchableOpacity, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, typography } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 import { getPerfil, subirFotoPerfil } from '../../api/perfil';
-import client from '../../api/client';
+import client, { esErrorServidor } from '../../api/client';
 import Button from '../../components/common/Button';
 import ProfileMenuItem from '../../components/common/ProfileMenuItem';
+import ConfirmModal from '../../components/common/ConfirmModal';
+import ServerErrorScreen from '../../components/common/ServerErrorScreen';
 
 const MENU_ITEMS = [
   { label: 'Medios de pago', screen: 'MediosPago' },
@@ -24,6 +26,8 @@ export default function ProfileScreen({ navigation }) {
   const [fotoUri, setFotoUri] = useState(null);
   const [fotoError, setFotoError] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [logoutVisible, setLogoutVisible] = useState(false);
+  const [errorServidor, setErrorServidor] = useState(false);
 
   async function cargarFoto() {
     try {
@@ -40,18 +44,26 @@ export default function ProfileScreen({ navigation }) {
     }
   }
 
-  useEffect(() => {
-    getPerfil()
-      .then((data) => {
-        setPerfil(data);
-        if (data.fotoPerfil) {
-          setHasPhoto(true);
-          cargarFoto();
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+  const cargarPerfil = useCallback(async () => {
+    setLoading(true);
+    setErrorServidor(false);
+    try {
+      const data = await getPerfil();
+      setPerfil(data);
+      if (data.fotoPerfil) {
+        setHasPhoto(true);
+        cargarFoto();
+      }
+    } catch (error) {
+      if (esErrorServidor(error)) setErrorServidor(true);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    cargarPerfil();
+  }, [cargarPerfil]);
 
   async function seleccionarFoto() {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -88,6 +100,10 @@ export default function ProfileScreen({ navigation }) {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  if (errorServidor) {
+    return <ServerErrorScreen onRetry={cargarPerfil} />;
   }
 
   const data = perfil || user || {};
@@ -146,9 +162,21 @@ export default function ProfileScreen({ navigation }) {
         </View>
 
         <View style={styles.logoutContainer}>
-          <Button title="Cerrar sesión" variant="danger" onPress={logout} />
+          <Button title="Cerrar sesión" variant="danger" onPress={() => setLogoutVisible(true)} />
         </View>
       </View>
+
+      <ConfirmModal
+        visible={logoutVisible}
+        title="Cerrar sesión"
+        message="¿Querés cerrar tu sesión? Vas a necesitar iniciar sesión de nuevo para acceder."
+        confirmText="Cerrar"
+        onConfirm={() => {
+          setLogoutVisible(false);
+          logout();
+        }}
+        onCancel={() => setLogoutVisible(false)}
+      />
     </View>
   );
 }

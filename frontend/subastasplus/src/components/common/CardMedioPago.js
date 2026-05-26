@@ -11,12 +11,18 @@ const TIPO_CONFIG = {
 
 function tituloPorTipo(item) {
   switch (item.tipo) {
-    case 'cuenta_nacional':
-      return `Cta. ${item.banco || ''} ***${String(item.cbu || '').slice(-3)}`.trim();
-    case 'cuenta_exterior':
-      return `Cta. ${item.banco || ''} ***${String(item.iban || '').replace(/\s/g, '').slice(-3)}`.trim();
-    case 'tarjeta':
-      return `Tarjeta ***${String(item.numero || item.ultimos4 || '').slice(-4)}`.trim();
+    case 'cuenta_nacional': {
+      const suf = String(item.cbu ?? '').slice(-3);
+      return `Cta. ${item.banco || ''}${suf ? ` ***${suf}` : ''}`.trim();
+    }
+    case 'cuenta_exterior': {
+      const suf = String(item.iban ?? '').replace(/\s/g, '').slice(-3);
+      return `Cta. ${item.banco || ''}${suf ? ` ***${suf}` : ''}`.trim();
+    }
+    case 'tarjeta': {
+      const suf = String(item.numero ?? item.ultimos4 ?? '').slice(-4);
+      return `Tarjeta${suf ? ` ***${suf}` : ''}`.trim();
+    }
     case 'cheque':
       return `Cheque #${item.numeroCheque || ''}`;
     default:

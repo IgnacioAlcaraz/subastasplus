@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,12 +12,15 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, typography } from "../../constants";
 import { getCatalogo } from "../../api/subastas";
+import { esErrorServidor } from "../../api/client";
+import ServerErrorScreen from "../../components/common/ServerErrorScreen";
 
 export default function CatalogScreen({ navigation, route }) {
   const { subastaId, moneda } = route.params;
   const [piezas, setPiezas] = useState([]);
   const [busqueda, setBusqueda] = useState("");
   const [loading, setLoading] = useState(true);
+  const [errorServidor, setErrorServidor] = useState(false);
 
   const piezasFiltradas = piezas.filter(
     (p) =>
@@ -25,20 +28,26 @@ export default function CatalogScreen({ navigation, route }) {
       String(p.numeroItem).includes(busqueda)
   );
 
-  useEffect(() => {
-    async function cargarCatalogo() {
-      try {
-        const datos = await getCatalogo(subastaId);
-        setPiezas(datos.data);
-      } catch (error) {
+  const cargarCatalogo = useCallback(async () => {
+    setLoading(true);
+    setErrorServidor(false);
+    try {
+      const datos = await getCatalogo(subastaId);
+      setPiezas(datos.data);
+    } catch (error) {
+      if (esErrorServidor(error)) {
+        setErrorServidor(true);
+      } else {
         Alert.alert("Error", "No se pudo cargar el catálogo");
-      } finally {
-        setLoading(false);
       }
+    } finally {
+      setLoading(false);
     }
-
-    cargarCatalogo();
   }, [subastaId]);
+
+  useEffect(() => {
+    cargarCatalogo();
+  }, [cargarCatalogo]);
 
   if (loading) {
     return (
@@ -46,6 +55,10 @@ export default function CatalogScreen({ navigation, route }) {
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
+  }
+
+  if (errorServidor) {
+    return <ServerErrorScreen onRetry={cargarCatalogo} />;
   }
 
   return (

@@ -1,6 +1,8 @@
 const supabase = require("../supabase-client");
 const SolicitudesVenta = require("../models/solicitudes_venta");
 const FotosSolicitudVenta = require("../models/fotos_solicitud_venta");
+const ItemsCatalogo = require("../models/items_catalogo");
+const ItemsCatalogoEstado = require("../models/items_catalogo_estado");
 const Seguros = require("../models/seguros");
 const SegurosExtension = require("../models/seguros_extension");
 const Subastas = require("../models/subastas");
@@ -68,14 +70,23 @@ async function findOwn(id, clienteId) {
   return row;
 }
 
+async function buildPrecioVenta(productoId) {
+  if (!productoId) return null;
+  const item = await ItemsCatalogo.findOne({ producto: productoId });
+  if (!item) return null;
+  const estado = await ItemsCatalogoEstado.findById(item.identificador);
+  return estado?.mejor_oferta != null ? Number(estado.mejor_oferta) : null;
+}
+
 async function fullShape(row) {
-  const [subastaAsignada, poliza, fotosResult] = await Promise.all([
+  const [subastaAsignada, poliza, fotosResult, precioVenta] = await Promise.all([
     buildSubastaAsignada(row.subasta_asignada),
     buildPoliza(row.seguro),
     supabase.from("fotos_solicitud_venta").select("*", { count: "exact", head: true }).eq("solicitud", row.identificador),
+    buildPrecioVenta(row.producto),
   ]);
   const fotosCount = fotosResult.count || 0;
-  return solicitudShape({ row, subastaAsignada, poliza, fotosCount });
+  return solicitudShape({ row, subastaAsignada, poliza, fotosCount, precioVenta });
 }
 
 // GET /solicitudes-venta

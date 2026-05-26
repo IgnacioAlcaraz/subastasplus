@@ -11,3 +11,11 @@ export function crearSolicitud(data) {
 export function getSolicitudById(id) {
   return client.get(`/solicitudes-venta/${id}`).then((r) => r.data);
 }
+
+export function aceptarCondiciones(id, data) {
+  return client.post(`/solicitudes-venta/${id}/aceptar-condiciones`, data).then((r) => r.data);
+}
+
+export function contactarAseguradora(id) {
+  return client.get(`/solicitudes-venta/${id}/contactar-aseguradora`).then((r) => r.data);
+}

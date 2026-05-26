@@ -7,6 +7,7 @@
 - *AsyncStorage* — persistencia local del token
 - *expo-constants* — lectura dinámica de la IP del servidor
 - *expo-image-picker* — cámara para fotos del DNI
+- *@react-native-community/netinfo* — detección del estado de conexión a internet
 
 ---
 
@@ -29,9 +30,11 @@ src/
 
 Cuando el usuario abre la app:
 
-1. App.js monta el AuthProvider y el NavigationContainer
+1. App.js monta el AuthProvider, el OfflineGate y el NavigationContainer
 2. RootNavigator lee AsyncStorage y determina el estado
 3. Según el estado muestra el navigator correspondiente (ver máquina de estados)
+
+El OfflineGate envuelve toda la app: detecta la pérdida de conexión y muestra un overlay por encima de cualquier pantalla.
 
 ---
 
@@ -180,6 +183,9 @@ Stack navigator dentro del tab Vender.
 - NuevaSolicitudStep2 → NuevaSolicitudStep2Screen
 - ConfirmacionSolicitud → ConfirmacionSolicitudScreen
 - VentaDetalle → VentaDetalleScreen
+- AceptarCondiciones → AceptarCondicionesScreen
+- PolizaSeguro → PolizaSeguroScreen
+- ContactarAseguradora → ContactarAseguradoraScreen
 
 ---
 
@@ -190,7 +196,8 @@ Instancia de axios configurada con:
 - baseURL dinámica usando Constants.expoConfig.hostUri — toma la IP automáticamente de la máquina que corre Expo, funciona en cualquier computadora sin cambiar nada
 - Puerto fijo: 3000/v1
 - Interceptor de request: inyecta Authorization: Bearer <token> automáticamente
-- Interceptor de response: convierte errores del servidor en objetos Error con el mensaje del backend
+- Interceptor de response: convierte errores del servidor en objetos Error con el mensaje del backend y adjunta el status HTTP en error.status
+- Exporta esErrorServidor(error) — devuelve true si error.status >= 500; lo usan las pantallas para decidir si muestran ServerErrorScreen
 
 ### src/api/auth.js
 | Función | Método | Endpoint |
@@ -243,6 +250,8 @@ Exporta también SERVER_URL (http://<host>:3000) para construir URLs de imágene
 | getSolicitudes(page) | GET | /solicitudes-venta |
 | crearSolicitud(data) | POST | /solicitudes-venta |
 | getSolicitudById(id) | GET | /solicitudes-venta/:id |
+| aceptarCondiciones(id, data) | POST | /solicitudes-venta/:id/aceptar-condiciones |
+| contactarAseguradora(id) | GET | /solicitudes-venta/:id/contactar-aseguradora |
 
 ### src/api/piezas.js
 | Función | Método | Endpoint |
@@ -297,6 +306,40 @@ Props: visible, onClose, variant ('pending' | 'guest'), onLogin, onRegister
 - variant 'pending': título "Cuenta en revisión", botón único "Entendido" → onClose
 - variant 'guest': título "Acción no disponible", dos botones en fila → "Iniciar Sesión" (onLogin) y "Registrarse" (onRegister)
 - Usado en AppNavigator (tabs restringidos) y AuctionDetailScreen ("Entrar a subasta")
+
+### src/components/common/OfflineScreen.js
+Props: onRetry
+
+- Pantalla a pantalla completa: círculo gris con X, título "Sin conexión a internet" y botón "Reintentar" (Button verde primary)
+- Estilos desde colors.js y typography.js
+- onRetry se dispara al tocar "Reintentar" (lo provee OfflineGate)
+
+### src/components/common/ConfirmModal.js
+Props: visible, onConfirm, onCancel, title, message, confirmText, cancelText
+
+- Modal reutilizable para confirmar acciones críticas (overlay oscuro, card centrada)
+- title (default "¿Estás seguro?"), message (default "Esta acción no se puede deshacer."), confirmText (default "Confirmar"), cancelText (default "Cancelar")
+- Título y mensaje alineados a la izquierda; fila de dos botones (Confirmar = Button verde primary, Cancelar = Button outline)
+- onConfirm / onCancel manejados por la pantalla que lo usa
+
+### src/components/common/ServerErrorScreen.js
+Props: onRetry
+
+- Pantalla a pantalla completa: círculo gris con !, título "Algo salió mal", subtítulo "Hubo un error en el servidor. Intentá de nuevo más tarde." y botón "Reintentar" (Button verde primary)
+- Estilos desde colors.js y typography.js
+- La renderiza cada pantalla cuando su carga de datos falla con error de servidor (5xx); onRetry vuelve a ejecutar la carga
+- Patrón de uso en pantallas: estado errorServidor + función de carga (useCallback); en el catch, si esErrorServidor(error) → setErrorServidor(true), sino Alert como antes
+- Wired en todas las pantallas que cargan datos: HomeScreen, AuctionsScreen, AuctionDetailScreen, CatalogScreen, PieceDetailScreen, VentasScreen, VentaDetalleScreen, ProfileScreen
+
+### src/components/OfflineGate.js
+Props: children
+
+- Componente envolvente que detecta el estado de conexión con NetInfo (no es de common/ porque envuelve la app entera, no es un control reutilizable)
+- Se suscribe a NetInfo.addEventListener al montar; considera offline cuando isConnected === false o isInternetReachable === false (cubre "WiFi sin internet" y timeouts)
+- Estado null (desconocido al arrancar) se trata como online para evitar falsos positivos
+- Renderiza children siempre + un overlay (absoluteFill) con OfflineScreen cuando no hay conexión, así la navegación queda montada debajo y no se pierde la pantalla actual
+- "Reintentar" llama a NetInfo.refresh(); si vuelve la conexión el overlay desaparece solo
+- Montado en App.js envolviendo al NavigationContainer
 
 ---
 
@@ -445,8 +488,35 @@ Endpoint: GET /solicitudes-venta/:id
 
 - Recibe id por route.params
 - Carrusel de imágenes con dots (imágenes autenticadas con Bearer token en header de Image)
-- Muestra: nombre del bien, cantidad de fotos · tipo, fecha de envío, mensaje "Esperando evaluación..."
-- Implementado para estados enviada/en_revision — otros estados pendientes
+- renderContenido() cambia el cuerpo según solicitud.estado:
+  - **enviada / en_revision (default):** nombre, fotos · tipo, fecha, "Esperando evaluación..."
+  - **aceptada:** valor base en primary, comisión, neto calculado, costo envío; botones "Aceptar condiciones" → AceptarCondiciones y "Rechazar (devolución)" con Alert de confirmación
+  - **rechazada:** diferencia admin (valorBase==null → motivo de rechazo) vs cliente (rechazó condiciones); card de devolución con costo y dirección si existen
+  - **en_subasta:** nombre del bien, card de subasta asignada, card de valor base + comisión, ubicación depósito, botón "Ver póliza de seguro" → PolizaSeguro
+  - **vendida:** nombre + "vendido!", precio de venta (mejor_oferta), comisión, neto, CBU enmascarado (***últimos 4)
+  - **no_vendida:** "Nadie pujo", empresa compró al base (valorBase), comisión y neto en una línea
+
+### src/screens/ventas/AceptarCondicionesScreen.js
+Endpoint: POST /solicitudes-venta/:id/aceptar-condiciones
+
+- Recibe solicitud completa por route.params
+- Info card: Valor base, Comisión %, Neto calculado (valorBase × (1 − comisiones/100))
+- Tabs "Cta. nacional" / "Cta. exterior" para elegir tipo de cuenta de cobro
+- Nacional: CBU (requerido), Banco, Titular
+- Exterior: SWIFT, IBAN, País, Moneda (todos requeridos), Banco, Titular
+- Al confirmar: POST aceptar-condiciones con aceptaValorBase: true, aceptaComisiones: true, cuentaCobro → navega a VentasList
+
+### src/screens/ventas/PolizaSeguroScreen.js
+Endpoint: ninguno propio — recibe poliza por route.params desde VentaDetalleScreen
+
+- Muestra: #nroPoliza (heading), aseguradora (subtítulo), Tipo, Importe (bold), Beneficiario (nombre + apellido del user en AuthContext), "Vigente"
+- Botón "Contactar aseguradora" → navega a ContactarAseguradora pasando solicitudId
+
+### src/screens/ventas/ContactarAseguradoraScreen.js
+Endpoint: GET /solicitudes-venta/:id/contactar-aseguradora
+
+- Carga contacto de la aseguradora al montar
+- Muestra: nombre aseguradora (h2), teléfono, email, web, número de póliza
 
 ### src/screens/mediosPago/RegistrarMedioPagoScreen.js
 Sin endpoint propio — es un selector estático con 4 opciones que navegan a los formularios correspondientes.
@@ -506,7 +576,7 @@ Endpoints: GET /perfil, PUT /perfil/foto, GET /perfil/foto
 - Al tocar el avatar abre expo-image-picker (cámara, recorte cuadrado 1:1, quality 0.5); sube base64 a PUT /perfil/foto y refresca la imagen
 - Badge verde (colors.primary) en la esquina inferior derecha del avatar indica que es editable
 - Card blanca con ítems de menú (ProfileMenuItem): Medios de pago navega a MediosPagoScreen; el resto (Historial compras, Historial ventas, Métricas, Multa a pagar) pendientes de conectar
-- Botón "Cerrar sesión" fijo en la parte inferior con Button variant="danger", llama a logout() del AuthContext
+- Botón "Cerrar sesión" fijo en la parte inferior (Button variant="danger") abre un ConfirmModal ("Cerrar sesión" / "¿Querés cerrar tu sesión?...", confirmText "Cerrar"); al confirmar llama a logout() del AuthContext
 
 ### src/screens/mediosPago/MediosPagoScreen.js
 Endpoint: GET /medios-pago
