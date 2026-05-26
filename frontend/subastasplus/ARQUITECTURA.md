@@ -105,7 +105,7 @@ Maneja la sesión del usuario en toda la app.
 | requires_medio_pago | JWT obtenido, pero cantidadMediosPago === 0. Estado persistido en AsyncStorage (auth_status) para sobrevivir cierres de app | MedioPagoNavigator |
 | authenticated | Tiene JWT | AppNavigator (completo) |
 
-`guest` y `pending` son ambos modo invitado — `isGuest` los agrupa. Se diferencian solo en el contenido del GuestModal.
+          
 
 *Transiciones automáticas al abrir la app:*
 - Encuentra tokenSeguimiento → llama a POST /registro/verificar-token
