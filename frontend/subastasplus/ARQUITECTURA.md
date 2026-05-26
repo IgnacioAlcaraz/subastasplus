@@ -160,6 +160,9 @@ Stack navigator dentro del tab Vender.
 - NuevaSolicitudStep2 → NuevaSolicitudStep2Screen
 - ConfirmacionSolicitud → ConfirmacionSolicitudScreen
 - VentaDetalle → VentaDetalleScreen
+- AceptarCondiciones → AceptarCondicionesScreen
+- PolizaSeguro → PolizaSeguroScreen
+- ContactarAseguradora → ContactarAseguradoraScreen
 
 ---
 
@@ -223,6 +226,8 @@ Exporta también SERVER_URL (http://<host>:3000) para construir URLs de imágene
 | getSolicitudes(page) | GET | /solicitudes-venta |
 | crearSolicitud(data) | POST | /solicitudes-venta |
 | getSolicitudById(id) | GET | /solicitudes-venta/:id |
+| aceptarCondiciones(id, data) | POST | /solicitudes-venta/:id/aceptar-condiciones |
+| contactarAseguradora(id) | GET | /solicitudes-venta/:id/contactar-aseguradora |
 
 ### src/api/piezas.js
 | Función | Método | Endpoint |
@@ -415,8 +420,35 @@ Endpoint: GET /solicitudes-venta/:id
 
 - Recibe id por route.params
 - Carrusel de imágenes con dots (imágenes autenticadas con Bearer token en header de Image)
-- Muestra: nombre del bien, cantidad de fotos · tipo, fecha de envío, mensaje "Esperando evaluación..."
-- Implementado para estados enviada/en_revision — otros estados pendientes
+- renderContenido() cambia el cuerpo según solicitud.estado:
+  - **enviada / en_revision (default):** nombre, fotos · tipo, fecha, "Esperando evaluación..."
+  - **aceptada:** valor base en primary, comisión, neto calculado, costo envío; botones "Aceptar condiciones" → AceptarCondiciones y "Rechazar (devolución)" con Alert de confirmación
+  - **rechazada:** diferencia admin (valorBase==null → motivo de rechazo) vs cliente (rechazó condiciones); card de devolución con costo y dirección si existen
+  - **en_subasta:** nombre del bien, card de subasta asignada, card de valor base + comisión, ubicación depósito, botón "Ver póliza de seguro" → PolizaSeguro
+  - **vendida:** nombre + "vendido!", precio de venta (mejor_oferta), comisión, neto, CBU enmascarado (***últimos 4)
+  - **no_vendida:** "Nadie pujo", empresa compró al base (valorBase), comisión y neto en una línea
+
+### src/screens/ventas/AceptarCondicionesScreen.js
+Endpoint: POST /solicitudes-venta/:id/aceptar-condiciones
+
+- Recibe solicitud completa por route.params
+- Info card: Valor base, Comisión %, Neto calculado (valorBase × (1 − comisiones/100))
+- Tabs "Cta. nacional" / "Cta. exterior" para elegir tipo de cuenta de cobro
+- Nacional: CBU (requerido), Banco, Titular
+- Exterior: SWIFT, IBAN, País, Moneda (todos requeridos), Banco, Titular
+- Al confirmar: POST aceptar-condiciones con aceptaValorBase: true, aceptaComisiones: true, cuentaCobro → navega a VentasList
+
+### src/screens/ventas/PolizaSeguroScreen.js
+Endpoint: ninguno propio — recibe poliza por route.params desde VentaDetalleScreen
+
+- Muestra: #nroPoliza (heading), aseguradora (subtítulo), Tipo, Importe (bold), Beneficiario (nombre + apellido del user en AuthContext), "Vigente"
+- Botón "Contactar aseguradora" → navega a ContactarAseguradora pasando solicitudId
+
+### src/screens/ventas/ContactarAseguradoraScreen.js
+Endpoint: GET /solicitudes-venta/:id/contactar-aseguradora
+
+- Carga contacto de la aseguradora al montar
+- Muestra: nombre aseguradora (h2), teléfono, email, web, número de póliza
 
 ### src/screens/mediosPago/RegistrarMedioPagoScreen.js
 Sin endpoint propio — es un selector estático con 4 opciones que navegan a los formularios correspondientes.

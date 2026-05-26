@@ -5,6 +5,9 @@ import NuevaSolicitudStep1Screen from '../screens/ventas/NuevaSolicitudStep1Scre
 import NuevaSolicitudStep2Screen from '../screens/ventas/NuevaSolicitudStep2Screen';
 import ConfirmacionSolicitudScreen from '../screens/ventas/ConfirmacionSolicitudScreen';
 import VentaDetalleScreen from '../screens/ventas/VentaDetalleScreen';
+import AceptarCondicionesScreen from '../screens/ventas/AceptarCondicionesScreen';
+import PolizaSeguroScreen from '../screens/ventas/PolizaSeguroScreen';
+import ContactarAseguradoraScreen from '../screens/ventas/ContactarAseguradoraScreen';
 
 const Stack = createStackNavigator();
 
@@ -16,6 +19,9 @@ export default function VentasNavigator() {
       <Stack.Screen name="NuevaSolicitudStep2" component={NuevaSolicitudStep2Screen} />
       <Stack.Screen name="ConfirmacionSolicitud" component={ConfirmacionSolicitudScreen} />
       <Stack.Screen name="VentaDetalle" component={VentaDetalleScreen} />
+      <Stack.Screen name="AceptarCondiciones" component={AceptarCondicionesScreen} />
+      <Stack.Screen name="PolizaSeguro" component={PolizaSeguroScreen} />
+      <Stack.Screen name="ContactarAseguradora" component={ContactarAseguradoraScreen} />
     </Stack.Navigator>
   );
 }

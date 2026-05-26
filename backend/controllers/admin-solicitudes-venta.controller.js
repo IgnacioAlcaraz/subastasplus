@@ -114,6 +114,7 @@ exports.aceptar = asyncHandler(async (req, res) => {
     estado: "aceptada",
     valor_base: Number(valorBase),
     comisiones: Number(comisiones),
+    costo_envio: Number((Number(valorBase) * 0.02).toFixed(2)),
     ubicacion_deposito: ubicacionDeposito || null,
     direccion_envio: direccionEnvio || null,
     producto: producto.identificador,
@@ -139,7 +140,7 @@ exports.rechazar = asyncHandler(async (req, res) => {
     });
   }
 
-  const { motivoRechazo } = req.body || {};
+  const { motivoRechazo, costoDevolucion, direccionDevolucion } = req.body || {};
   if (!motivoRechazo || !String(motivoRechazo).trim()) {
     throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "motivoRechazo es requerido.", { campo: "motivoRechazo" });
   }
@@ -147,6 +148,8 @@ exports.rechazar = asyncHandler(async (req, res) => {
   const updated = await SolicitudesVenta.update(row.identificador, {
     estado: "rechazada",
     motivo_rechazo: String(motivoRechazo).slice(0, 2000),
+    costo_envio: costoDevolucion ? Number(costoDevolucion) : null,
+    direccion_envio: direccionDevolucion ? String(direccionDevolucion) : null,
   });
 
   await crearNotificacion(row.cliente, {
