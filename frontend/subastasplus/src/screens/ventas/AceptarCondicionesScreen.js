@@ -1,54 +1,114 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, ActivityIndicator,
 } from 'react-native';
-import { colors, typography } from '../../constants';
+import { colors, typography, BANCOS_ARGENTINA } from '../../constants';
 import Input from '../../components/common/Input';
+import Button from '../../components/common/Button';
+import PickerField from '../../components/common/PickerField';
 import { aceptarCondiciones } from '../../api/solicitudesVenta';
+import { getPaises } from '../../api/paises';
+
+const MONEDAS = [
+  { label: 'USD — Dólar estadounidense', value: 'USD' },
+  { label: 'EUR — Euro', value: 'EUR' },
+  { label: 'GBP — Libra esterlina', value: 'GBP' },
+];
+
+function fmt(n) {
+  return n?.toLocaleString('es-AR', { minimumFractionDigits: 0 }) ?? '—';
+}
+
+function validarNacional({ cbu, banco, titular }) {
+  const errs = {};
+  if (cbu.replace(/\D/g, '').length !== 22) errs.cbu = 'El CBU debe tener 22 dígitos';
+  if (!banco) errs.banco = 'Seleccioná un banco';
+  if (!titular.trim()) errs.titular = 'El titular es obligatorio';
+  return errs;
+}
+
+function validarExterior({ swift, iban, banco, pais, moneda, titular }) {
+  const errs = {};
+  const swiftClean = swift.replace(/\s/g, '');
+  if (swiftClean.length < 8 || swiftClean.length > 11) errs.swift = 'El SWIFT/BIC debe tener entre 8 y 11 caracteres';
+  if (!iban.trim()) errs.iban = 'El IBAN es obligatorio';
+  if (!banco.trim()) errs.banco = 'El banco es obligatorio';
+  if (!pais) errs.pais = 'Seleccioná un país';
+  if (!moneda) errs.moneda = 'Seleccioná una moneda';
+  if (!titular.trim()) errs.titular = 'El titular es obligatorio';
+  return errs;
+}
 
 export default function AceptarCondicionesScreen({ navigation, route }) {
   const { solicitud } = route.params;
   const [tipoCuenta, setTipoCuenta] = useState('nacional');
+
   const [cbu, setCbu] = useState('');
   const [banco, setBanco] = useState('');
   const [titular, setTitular] = useState('');
+
   const [swift, setSwift] = useState('');
   const [iban, setIban] = useState('');
   const [pais, setPais] = useState('');
   const [moneda, setMoneda] = useState('');
+  const [bancoExt, setBancoExt] = useState('');
+  const [titularExt, setTitularExt] = useState('');
+
+  const [paises, setPaises] = useState([]);
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   const neto = solicitud.valorBase * (1 - solicitud.comisiones / 100);
 
-  function fmt(n) {
-    return n?.toLocaleString('es-AR', { minimumFractionDigits: 0 }) ?? '—';
-  }
+  useEffect(() => {
+    getPaises()
+      .then(data => setPaises(data.filter(p => p.nombre !== 'Argentina').map(p => p.nombre)))
+      .catch(() => {});
+  }, []);
 
   async function confirmar() {
-    if (tipoCuenta === 'nacional' && !cbu.trim()) {
-      Alert.alert('Campo requerido', 'Ingresá el CBU.');
-      return;
-    }
-    if (tipoCuenta === 'exterior') {
-      if (!swift.trim() || !iban.trim() || !pais.trim() || !moneda.trim()) {
-        Alert.alert('Campos requeridos', 'Completá SWIFT, IBAN, País y Moneda.');
-        return;
+    let errs = {};
+    let cuentaCobro;
+
+    if (tipoCuenta === 'nacional') {
+      errs = validarNacional({ cbu, banco, titular });
+      if (!Object.keys(errs).length) {
+        cuentaCobro = {
+          tipo: 'nacional',
+          cbu: cbu.replace(/\D/g, ''),
+          banco: banco || null,
+          titular: titular.trim(),
+        };
+      }
+    } else {
+      errs = validarExterior({ swift, iban, banco: bancoExt, pais, moneda, titular: titularExt });
+      if (!Object.keys(errs).length) {
+        cuentaCobro = {
+          tipo: 'exterior',
+          swift: swift.replace(/\s/g, '').toUpperCase(),
+          iban: iban.trim(),
+          pais,
+          moneda,
+          banco: bancoExt.trim() || null,
+          titular: titularExt.trim(),
+        };
       }
     }
 
+    if (Object.keys(errs).length) {
+      setErrors(errs);
+      return;
+    }
+    setErrors({});
     setLoading(true);
     try {
-      const cuentaCobro = tipoCuenta === 'nacional'
-        ? { tipo: 'nacional', cbu: cbu.trim(), banco: banco.trim() || null, titular: titular.trim() || null }
-        : { tipo: 'exterior', swift: swift.trim(), iban: iban.trim(), pais: pais.trim(), moneda: moneda.trim(), banco: banco.trim() || null, titular: titular.trim() || null };
-
       await aceptarCondiciones(solicitud.id, {
         aceptaValorBase: true,
         aceptaComisiones: true,
         cuentaCobro,
       });
-      navigation.navigate('VentasList');
+      navigation.goBack();
     } catch (e) {
       Alert.alert('Error', e.message || 'No se pudo confirmar.');
     } finally {
@@ -59,27 +119,28 @@ export default function AceptarCondicionesScreen({ navigation, route }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-        <Text style={styles.back}>‹ Aceptar</Text>
+        <Text style={styles.back}>‹ Condiciones</Text>
       </TouchableOpacity>
 
-      <Text style={styles.title}>Confirmar y declarar cuenta</Text>
+      <Text style={styles.title}>Confirmar condiciones</Text>
 
       <View style={styles.infoCard}>
-        <Text style={styles.infoRow}>Base: US$ {fmt(solicitud.valorBase)} | Com: {solicitud.comisiones}%</Text>
+        <Text style={styles.infoRow}>Base: US$ {fmt(solicitud.valorBase)} · Com: {solicitud.comisiones}%</Text>
         <Text style={styles.infoNeto}>Neto: US$ {fmt(neto)}</Text>
+        <Text style={styles.infoRow}>Costo de envío al depósito: US$ {fmt(solicitud.costoEnvio)}</Text>
       </View>
 
       <Text style={styles.sectionLabel}>Cuenta de cobro</Text>
       <View style={styles.tabs}>
         <TouchableOpacity
           style={[styles.tab, tipoCuenta === 'nacional' && styles.tabActive]}
-          onPress={() => setTipoCuenta('nacional')}
+          onPress={() => { setTipoCuenta('nacional'); setErrors({}); }}
         >
           <Text style={[styles.tabText, tipoCuenta === 'nacional' && styles.tabTextActive]}>Cta. nacional</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.tab, tipoCuenta === 'exterior' && styles.tabActive]}
-          onPress={() => setTipoCuenta('exterior')}
+          onPress={() => { setTipoCuenta('exterior'); setErrors({}); }}
         >
           <Text style={[styles.tabText, tipoCuenta === 'exterior' && styles.tabTextActive]}>Cta. exterior</Text>
         </TouchableOpacity>
@@ -87,24 +148,83 @@ export default function AceptarCondicionesScreen({ navigation, route }) {
 
       {tipoCuenta === 'nacional' ? (
         <>
-          <Input label="CBU" value={cbu} onChangeText={setCbu} placeholder="0000003100010000000012" keyboardType="numeric" />
-          <Input label="Banco" value={banco} onChangeText={setBanco} placeholder="Banco Nación" />
-          <Input label="Titular" value={titular} onChangeText={setTitular} placeholder="Juan Pérez" />
+          <Input
+            label="CBU (22 dígitos)"
+            value={cbu}
+            onChangeText={t => setCbu(t.replace(/\D/g, '').slice(0, 22))}
+            placeholder="0000003100010000000012"
+            keyboardType="numeric"
+            error={errors.cbu}
+          />
+          <PickerField
+            label="Banco"
+            value={banco}
+            onSelect={setBanco}
+            opciones={BANCOS_ARGENTINA}
+            error={errors.banco}
+          />
+          <Input
+            label="Titular"
+            value={titular}
+            onChangeText={setTitular}
+            placeholder="Juan Pérez"
+            error={errors.titular}
+          />
         </>
       ) : (
         <>
-          <Input label="SWIFT" value={swift} onChangeText={setSwift} placeholder="BNDAARBA" />
-          <Input label="IBAN" value={iban} onChangeText={setIban} placeholder="AR000000000000000000000" />
-          <Input label="País" value={pais} onChangeText={setPais} placeholder="Argentina" />
-          <Input label="Moneda" value={moneda} onChangeText={setMoneda} placeholder="USD" />
-          <Input label="Banco" value={banco} onChangeText={setBanco} placeholder="Banco Nación" />
-          <Input label="Titular" value={titular} onChangeText={setTitular} placeholder="Juan Pérez" />
+          <Input
+            label="SWIFT / BIC"
+            value={swift}
+            onChangeText={t => setSwift(t.toUpperCase())}
+            placeholder="NWBKGB2L"
+            error={errors.swift}
+          />
+          <Input
+            label="IBAN"
+            value={iban}
+            onChangeText={setIban}
+            placeholder="GB29 NWBK 6016 1331 9268 19"
+            error={errors.iban}
+          />
+          <PickerField
+            label="País del banco"
+            value={pais}
+            onSelect={setPais}
+            opciones={paises}
+            error={errors.pais}
+          />
+          <PickerField
+            label="Moneda"
+            value={moneda}
+            onSelect={setMoneda}
+            opciones={MONEDAS}
+            error={errors.moneda}
+          />
+          <Input
+            label="Banco"
+            value={bancoExt}
+            onChangeText={setBancoExt}
+            placeholder="HSBC London"
+            error={errors.banco}
+          />
+          <Input
+            label="Titular"
+            value={titularExt}
+            onChangeText={setTitularExt}
+            placeholder="Juan Pérez"
+            error={errors.titular}
+          />
         </>
       )}
 
-      <TouchableOpacity style={[styles.btn, loading && styles.btnDisabled]} onPress={confirmar} disabled={loading} activeOpacity={0.85}>
-        {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.btnText}>Confirmar</Text>}
-      </TouchableOpacity>
+      <View style={styles.nota}>
+        <Text style={styles.notaText}>
+          Al confirmar, el bien debe ser enviado a la dirección indicada. Si al llegar el producto no cumple con lo declarado, la empresa puede rechazarlo y el envío de devolución tendrá cargo.
+        </Text>
+      </View>
+
+      <Button title={loading ? 'Confirmando...' : 'Confirmar y enviar'} onPress={confirmar} disabled={loading} />
     </ScrollView>
   );
 }
@@ -117,11 +237,11 @@ const styles = StyleSheet.create({
   title: { ...typography.h2, color: colors.textPrimary, marginBottom: 20 },
   infoCard: {
     backgroundColor: colors.surface, borderRadius: 12, padding: 16,
-    marginBottom: 24, gap: 4,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4, elevation: 2,
+    marginBottom: 24, gap: 6,
+    borderWidth: 1, borderColor: colors.border,
   },
   infoRow: { ...typography.bodySmall, color: colors.textSecondary },
-  infoNeto: { ...typography.body, color: colors.textPrimary, fontWeight: '600' },
+  infoNeto: { ...typography.body, color: colors.primary, fontWeight: '700' },
   sectionLabel: { ...typography.label, color: colors.textSecondary, marginBottom: 10 },
   tabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },
   tab: {
@@ -132,10 +252,6 @@ const styles = StyleSheet.create({
   tabActive: { borderColor: colors.primary },
   tabText: { ...typography.bodySmall, color: colors.textSecondary },
   tabTextActive: { color: colors.primary, fontWeight: '600' },
-  btn: {
-    backgroundColor: colors.primary, borderRadius: 12,
-    paddingVertical: 16, alignItems: 'center', marginTop: 24,
-  },
-  btnDisabled: { opacity: 0.6 },
-  btnText: { ...typography.button, color: colors.surface },
+  nota: { marginVertical: 20 },
+  notaText: { ...typography.bodySmall, color: colors.textSecondary },
 });

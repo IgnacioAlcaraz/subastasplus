@@ -9,12 +9,14 @@ import {
 } from 'react-native';
 import { colors, typography } from '../../constants';
 
-export default function PickerField({ label, value, onSelect, opciones, error }) {
+export default function PickerField({ label, value, onSelect, opciones = [], error }) {
   const [visible, setVisible] = useState(false);
 
-  const labelMostrado = typeof opciones[0] === 'string'
-    ? value
-    : opciones.find((o) => o.value === value)?.label;
+  const labelMostrado = !opciones.length
+    ? null
+    : typeof opciones[0] === 'string'
+      ? value
+      : opciones.find((o) => o.value === value)?.label;
 
   return (
     <View style={styles.wrapper}>

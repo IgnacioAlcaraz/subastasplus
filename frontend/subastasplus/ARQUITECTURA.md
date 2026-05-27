@@ -286,9 +286,10 @@ Props: label, onPress
 Props: label, value, onSelect, opciones, error
 
 - Opciones puede ser array de strings o array de `{ label, value }`
+- Default a `[]` si no se pasa opciones — evita crash cuando la lista carga de forma asíncrona
 - Abre un bottom sheet modal con la lista de opciones
 - error — texto de error en rojo debajo del campo, borde rojo cuando está presente
-- Usado en CuentaNacionalScreen y CuentaExteriorScreen (y futuros formularios de medios de pago)
+- Usado en CuentaNacionalScreen, CuentaExteriorScreen y AceptarCondicionesScreen
 
 ### src/components/common/CardMedioPago.js
 Props: item
@@ -439,7 +440,7 @@ Endpoint: GET /subastas/:id/catalogo
 
 - Recibe subastaId y moneda por route.params
 - Buscador en frontend filtra por descripción o número de ítem
-- Lista de cards con imagen placeholder, número, descripción y precio
+- Lista de cards con miniatura (item.imagenPrincipal = /v1/piezas/:id/fotos/0 del backend), número, descripción y precio
 - Al tocar navega a PieceDetail pasando id y moneda
 
 ### src/screens/auctions/PieceDetailScreen.js
@@ -456,7 +457,8 @@ Endpoint: GET /solicitudes-venta
 
 - Tab "Vender" en AppNavigator (4to tab)
 - FlatList de solicitudes con card: imagen (foto 0 con Bearer token en header), descripción, badge de estado con color, chevron
-- Estados del backend mostrados tal cual: enviada, en_revision, aceptada, rechazada, en_subasta, vendida, no_vendida
+- Labels legibles por estado: "Enviada", "En revisión", "Aceptada", "Rechazada", "En subasta", "Vendida", "No vendida"
+- Caso especial: `aceptada` + cuentaCobro presente → badge "Esperando entrega"
 - FAB "+" navega a NuevaSolicitudStep1
 - Pull to refresh
 
@@ -487,24 +489,28 @@ Endpoint: POST /solicitudes-venta
 Endpoint: GET /solicitudes-venta/:id
 
 - Recibe id por route.params
+- Usa `useFocusEffect` para recargar los datos cada vez que la pantalla recibe foco (garantiza datos frescos al volver de AceptarCondiciones)
 - Carrusel de imágenes con dots (imágenes autenticadas con Bearer token en header de Image)
-- renderContenido() cambia el cuerpo según solicitud.estado:
-  - **enviada / en_revision (default):** nombre, fotos · tipo, fecha, "Esperando evaluación..."
-  - **aceptada:** valor base en primary, comisión, neto calculado, costo envío; botones "Aceptar condiciones" → AceptarCondiciones y "Rechazar (devolución)" con Alert de confirmación
-  - **rechazada:** diferencia admin (valorBase==null → motivo de rechazo) vs cliente (rechazó condiciones); card de devolución con costo y dirección si existen
-  - **en_subasta:** nombre del bien, card de subasta asignada, card de valor base + comisión, ubicación depósito, botón "Ver póliza de seguro" → PolizaSeguro
+- renderContenido() cambia el cuerpo según solicitud.estado + campos adicionales:
+  - **en_revision:** "Esperando evaluación..." (admin revisando)
+  - **aceptada sin cuentaCobro:** propuesta del admin — valor base, comisión, neto, costo envío; botones "Aceptar condiciones" → AceptarCondiciones y "Rechazar propuesta" (sin cargo, Alert de confirmación)
+  - **aceptada con cuentaCobro:** "Esperando entrega" — dirección del depósito, condiciones acordadas
+  - **rechazada, valorBase==null:** admin rechazó antes de hacer propuesta, sin cargo
+  - **rechazada, valorBase!=null, cuentaCobro==null:** cliente rechazó la propuesta, sin cargo
+  - **rechazada, valorBase!=null, cuentaCobro!=null:** bien rechazado en depósito, con cargo — card de devolución con costo y dirección
+  - **en_subasta:** nombre, subasta asignada (id + título), valor base, comisión, depósito, botón "Ver póliza de seguro" → PolizaSeguro
   - **vendida:** nombre + "vendido!", precio de venta (mejor_oferta), comisión, neto, CBU enmascarado (***últimos 4)
-  - **no_vendida:** "Nadie pujo", empresa compró al base (valorBase), comisión y neto en una línea
+  - **no_vendida:** empresa compró al base (valorBase), comisión y neto
 
 ### src/screens/ventas/AceptarCondicionesScreen.js
 Endpoint: POST /solicitudes-venta/:id/aceptar-condiciones
 
 - Recibe solicitud completa por route.params
-- Info card: Valor base, Comisión %, Neto calculado (valorBase × (1 − comisiones/100))
+- Info card: Valor base, Comisión %, Neto calculado (valorBase × (1 − comisiones/100)), Costo de envío
 - Tabs "Cta. nacional" / "Cta. exterior" para elegir tipo de cuenta de cobro
-- Nacional: CBU (requerido), Banco, Titular
-- Exterior: SWIFT, IBAN, País, Moneda (todos requeridos), Banco, Titular
-- Al confirmar: POST aceptar-condiciones con aceptaValorBase: true, aceptaComisiones: true, cuentaCobro → navega a VentasList
+- Nacional: CBU (22 dígitos, requerido), Banco (PickerField con BANCOS_ARGENTINA, requerido), Titular (requerido)
+- Exterior: SWIFT (requerido), IBAN (requerido), País (PickerField desde GET /paises sin Argentina, requerido), Moneda (PickerField USD/EUR/GBP, requerido), Banco (texto libre, requerido), Titular (requerido)
+- Al confirmar exitoso: `navigation.goBack()` → vuelve a VentaDetalle que recarga automáticamente vía useFocusEffect
 
 ### src/screens/ventas/PolizaSeguroScreen.js
 Endpoint: ninguno propio — recibe poliza por route.params desde VentaDetalleScreen

@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator,
   ScrollView, FlatList, Image, Dimensions, Alert,
 } from 'react-native';
 import { colors, typography } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
-import { getSolicitudById } from '../../api/solicitudesVenta';
+import { getSolicitudById, aceptarCondiciones } from '../../api/solicitudesVenta';
 import { SERVER_URL, esErrorServidor } from '../../api/client';
 import Button from '../../components/common/Button';
 import ServerErrorScreen from '../../components/common/ServerErrorScreen';
@@ -102,7 +103,7 @@ function ContenidoAceptada({ solicitud, navigation, onRechazar, rechazando }) {
         >
           {rechazando
             ? <ActivityIndicator color={colors.textSecondary} />
-            : <Text style={styles.btnRechazarText}>Rechazar (devolución)</Text>}
+            : <Text style={styles.btnRechazarText}>Rechazar propuesta</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -155,7 +156,7 @@ function ContenidoEnSubasta({ solicitud, navigation }) {
       {solicitud.subastaAsignada ? (
         <View style={styles.infoCard}>
           <Text style={styles.infoCardTitulo}>Subasta asignada</Text>
-          <Text style={styles.meta}>#{solicitud.subastaAsignada}</Text>
+          <Text style={styles.meta}>#{solicitud.subastaAsignada.id} — {solicitud.subastaAsignada.titulo}</Text>
         </View>
       ) : null}
 
@@ -189,22 +190,70 @@ function ContenidoEnSubasta({ solicitud, navigation }) {
   );
 }
 
+function ContenidoEsperandoEntrega({ solicitud }) {
+  return (
+    <View style={styles.body}>
+      <Text style={styles.nombre}>Esperando entrega</Text>
+      <Text style={styles.esperando}>
+        Aceptaste las condiciones. Enviá el bien a la dirección indicada.
+      </Text>
+
+      {solicitud.ubicacionDeposito ? (
+        <View style={styles.infoCard}>
+          <Text style={styles.infoCardTitulo}>Dirección de entrega</Text>
+          <Text style={styles.meta}>{solicitud.ubicacionDeposito}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.infoCard}>
+        <Text style={styles.infoCardTitulo}>Condiciones acordadas</Text>
+        <Text style={styles.meta}>Valor base: US$ {fmt(solicitud.valorBase)}</Text>
+        <Text style={styles.meta}>Comisión: {solicitud.comisiones}%</Text>
+        <Text style={styles.meta}>Neto estimado: US$ {fmt(solicitud.valorBase * (1 - solicitud.comisiones / 100))}</Text>
+      </View>
+
+      <Text style={styles.meta}>
+        Una vez que el bien llegue al depósito, será inspeccionado. Si no coincide con lo declarado podrá ser rechazado y el envío de devolución tendrá cargo.
+      </Text>
+    </View>
+  );
+}
+
 function ContenidoRechazada({ solicitud }) {
-  const rechazadoPorAdmin = solicitud.valorBase == null;
+  const rechazadoPorAdminInicial = solicitud.valorBase == null;
+  const rechazadoPorCliente = solicitud.valorBase != null && solicitud.cuentaCobro == null;
+  const rechazadoPorAdminFinal = solicitud.valorBase != null && solicitud.cuentaCobro != null;
+
+  if (rechazadoPorAdminInicial) {
+    return (
+      <View style={styles.body}>
+        <Text style={styles.nombre}>Solicitud rechazada</Text>
+        {solicitud.motivoRechazo ? (
+          <Text style={styles.esperando}>{solicitud.motivoRechazo}</Text>
+        ) : null}
+        <Text style={styles.meta}>No se aplicaron cargos.</Text>
+      </View>
+    );
+  }
+
+  if (rechazadoPorCliente) {
+    return (
+      <View style={styles.body}>
+        <Text style={styles.nombre}>Rechazaste la propuesta</Text>
+        <Text style={styles.esperando}>No se aplicaron cargos.</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.body}>
-      {rechazadoPorAdmin && solicitud.motivoRechazo ? (
-        <>
-          <Text style={styles.nombre}>Causas del rechazo</Text>
-          <Text style={styles.esperando}>{solicitud.motivoRechazo}</Text>
-          <Text style={styles.meta}>Bien devuelto con cargo.</Text>
-        </>
+      <Text style={styles.nombre}>Bien rechazado en depósito</Text>
+      {solicitud.motivoRechazo ? (
+        <Text style={styles.esperando}>{solicitud.motivoRechazo}</Text>
       ) : null}
-
       {solicitud.costoEnvio != null ? (
-        <View style={[styles.devolucionCard, rechazadoPorAdmin && { marginTop: 24 }]}>
-          <Text style={styles.nombre}>Devolución en proceso</Text>
+        <View style={[styles.devolucionCard, { marginTop: 16 }]}>
+          <Text style={styles.metaBold}>Devolución en proceso</Text>
           <Text style={styles.meta}>Costo: US$ {fmt(solicitud.costoEnvio)}</Text>
           {solicitud.direccionEnvio ? (
             <Text style={styles.meta}>Dir: {solicitud.direccionEnvio}</Text>
@@ -212,10 +261,6 @@ function ContenidoRechazada({ solicitud }) {
           <Text style={styles.metaBold}>Estado: En tránsito</Text>
         </View>
       ) : null}
-
-      {!rechazadoPorAdmin && (
-        <Text style={styles.esperando}>Bien devuelto con cargo.</Text>
-      )}
     </View>
   );
 }
@@ -226,6 +271,7 @@ export default function VentaDetalleScreen({ navigation, route }) {
   const [solicitud, setSolicitud] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorServidor, setErrorServidor] = useState(false);
+  const [rechazando, setRechazando] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -239,22 +285,15 @@ export default function VentaDetalleScreen({ navigation, route }) {
       setLoading(false);
     }
   }, [id]);
-  const [rechazando, setRechazando] = useState(false);
 
-  const cargar = useCallback(() => {
-    return getSolicitudById(id)
-      .then(setSolicitud)
-      .catch(() => {});
-  }, [id]);
-
-  useEffect(() => {
-    cargar().finally(() => setLoading(false));
-  }, [cargar]);
+  useFocusEffect(
+    useCallback(() => { cargar(); }, [cargar])
+  );
 
   function confirmarRechazo() {
     Alert.alert(
-      'Rechazar condiciones',
-      'Si rechazás, el bien será devuelto con cargo. ¿Confirmás?',
+      'Rechazar propuesta',
+      'Rechazarás la propuesta del tasador. No se aplicarán cargos. ¿Confirmás?',
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Rechazar', style: 'destructive', onPress: rechazar },
@@ -300,7 +339,12 @@ export default function VentaDetalleScreen({ navigation, route }) {
 
   function renderContenido() {
     switch (solicitud.estado) {
+      case 'en_revision':
+        return <ContenidoPendiente solicitud={solicitud} />;
       case 'aceptada':
+        if (solicitud.cuentaCobro != null) {
+          return <ContenidoEsperandoEntrega solicitud={solicitud} />;
+        }
         return <ContenidoAceptada solicitud={solicitud} navigation={navigation} onRechazar={confirmarRechazo} rechazando={rechazando} />;
       case 'rechazada':
         return <ContenidoRechazada solicitud={solicitud} />;

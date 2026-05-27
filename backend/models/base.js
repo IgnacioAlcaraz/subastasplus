@@ -46,10 +46,12 @@ function createModel({ table, pk = "identificador" }) {
 
       let { data: row, error } = await tryInsert(data);
       // Fallback para tablas sin SERIAL: si el pk vino null, computamos y reintentamos.
+      // No aplica cuando el pk es GENERATED ALWAYS (la DB ya lo genera sola).
       if (
         error &&
         data[pk] === undefined &&
-        /null value in column "?[^"]+"? of relation/.test(error.message)
+        /null value in column "?[^"]+"? of relation/.test(error.message) &&
+        error.code !== '428C9'
       ) {
         const id = await this.nextId();
         ({ data: row, error } = await tryInsert({ ...data, [pk]: id }));

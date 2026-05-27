@@ -20,6 +20,17 @@ const ESTADO_COLOR = {
   no_vendida: colors.textDisabled,
 };
 
+const ESTADO_LABEL = {
+  borrador: 'Borrador',
+  enviada: 'Enviada',
+  en_revision: 'En revisión',
+  aceptada: 'Aceptada',
+  rechazada: 'Rechazada',
+  en_subasta: 'En subasta',
+  vendida: 'Vendida',
+  no_vendida: 'No vendida',
+};
+
 export default function VentasScreen({ navigation }) {
   const { token } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
@@ -54,7 +65,9 @@ export default function VentasScreen({ navigation }) {
   }
 
   function renderItem({ item }) {
-    const label = item.estado ?? '';
+    const label = item.estado === 'aceptada' && item.cuentaCobro != null
+      ? 'Esperando entrega'
+      : (ESTADO_LABEL[item.estado] ?? item.estado ?? '');
     const badgeColor = ESTADO_COLOR[item.estado] ?? colors.textSecondary;
     const imageUri = item.imagenes?.length > 0
       ? `${SERVER_URL}${item.imagenes[0]}`

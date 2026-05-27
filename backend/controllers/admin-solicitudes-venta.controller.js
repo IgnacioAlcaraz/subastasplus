@@ -5,6 +5,7 @@ const ProductosExtension = require("../models/productos_extension");
 const ArtistasPiezas = require("../models/artistas_piezas");
 const Fotos = require("../models/fotos");
 const Duenios = require("../models/duenios");
+const Clientes = require("../models/clientes");
 const Catalogos = require("../models/catalogos");
 const ItemsCatalogo = require("../models/items_catalogo");
 const ItemsCatalogoEstado = require("../models/items_catalogo_estado");
@@ -14,6 +15,8 @@ const Subastas = require("../models/subastas");
 const HttpError = require("../lib/http-error");
 const { solicitudShape, polizaShape } = require("../lib/solicitud-venta-shape");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
+
+const ADMIN_EMPLEADO_ID = Number(process.env.ADMIN_EMPLEADO_ID);
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -30,13 +33,31 @@ async function findSolicitud(id) {
 async function findOrCreateDuenio(clienteId) {
   const existing = await Duenios.findById(clienteId);
   if (existing) return existing;
-  return Duenios.create({ identificador: clienteId });
+  const cliente = await Clientes.findById(clienteId);
+  const { data, error } = await supabase
+    .from("duenios")
+    .insert({
+      identificador: clienteId,
+      numero_pais: cliente?.numero_pais ?? null,
+      verificacion_financiera: "si",
+      verificacion_judicial: "si",
+      calificacion_riesgo: 1,
+      verificador: ADMIN_EMPLEADO_ID,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 async function findOrCreateCatalogo(subastaId) {
   const existing = await Catalogos.findOne({ subasta: subastaId });
   if (existing) return existing;
-  return Catalogos.create({ subasta: subastaId });
+  return Catalogos.create({
+    subasta: subastaId,
+    descripcion: `Catálogo subasta #${subastaId}`,
+    responsable: ADMIN_EMPLEADO_ID,
+  });
 }
 
 // POST /admin/solicitudes-venta/:id/revisar
@@ -70,15 +91,18 @@ exports.aceptar = asyncHandler(async (req, res) => {
   if (!comisiones || Number(comisiones) < 0) {
     throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "comisiones es requerido.", { campo: "comisiones" });
   }
+  if (!ubicacionDeposito || !String(ubicacionDeposito).trim()) {
+    throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "ubicacionDeposito es requerido.", { campo: "ubicacionDeposito" });
+  }
 
-  // Asegurar que exista un registro de duenio para el cliente
-  await findOrCreateDuenio(row.cliente);
+  const duenio = await findOrCreateDuenio(row.cliente);
 
   // Crear producto
   const producto = await Productos.create({
     descripcion_completa: row.descripcion,
     descripcion_catalogo: row.descripcion,
-    duenio: row.cliente,
+    duenio: duenio.identificador,
+    revisor: ADMIN_EMPLEADO_ID,
   });
 
   // Extensión del producto
@@ -134,8 +158,8 @@ exports.aceptar = asyncHandler(async (req, res) => {
 // Body: { motivoRechazo }
 exports.rechazar = asyncHandler(async (req, res) => {
   const row = await findSolicitud(Number(req.params.id));
-  if (!["enviada", "en_revision"].includes(row.estado)) {
-    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede rechazar una solicitud en estado 'enviada' o 'en_revision'.", {
+  if (!["enviada", "en_revision", "aceptada"].includes(row.estado)) {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede rechazar una solicitud en estado 'enviada', 'en_revision' o 'aceptada'.", {
       estadoActual: row.estado,
     });
   }
@@ -191,6 +215,7 @@ exports.asignarSubasta = asyncHandler(async (req, res) => {
     catalogo: catalogo.identificador,
     producto: row.producto,
     precio_base: row.valor_base,
+    comision: row.comisiones,
   });
 
   await ItemsCatalogoEstado.create({

@@ -192,6 +192,10 @@ exports.detalle = asyncHandler(async (req, res) => {
 exports.aceptarCondiciones = asyncHandler(async (req, res) => {
   const row = await findOwn(Number(req.params.id), req.user.sub);
 
+  if (row.estado !== 'aceptada') {
+    throw new HttpError(409, 'SOLICITUD_ESTADO_INVALIDO', 'Solo podés aceptar condiciones cuando la solicitud fue aceptada por la empresa.', { estadoActual: row.estado });
+  }
+
   const { aceptaValorBase, aceptaComisiones, cuentaCobro } = req.body || {};
 
   if (aceptaValorBase !== true || aceptaComisiones !== true) {

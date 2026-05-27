@@ -8,9 +8,11 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors, typography } from "../../constants";
+import { SERVER_URL } from "../../api/client";
 import { getCatalogo } from "../../api/subastas";
 import { esErrorServidor } from "../../api/client";
 import ServerErrorScreen from "../../components/common/ServerErrorScreen";
@@ -88,7 +90,10 @@ export default function CatalogScreen({ navigation, route }) {
             style={styles.card}
             onPress={() => navigation.navigate("PieceDetail", { id: item.id, moneda })}
           >
-            <View style={styles.imagen} />
+            {item.imagenPrincipal
+              ? <Image source={{ uri: `${SERVER_URL}${item.imagenPrincipal}` }} style={styles.imagen} resizeMode="cover" />
+              : <View style={styles.imagen} />
+            }
             <View style={styles.cardInfo}>
               <Text style={styles.numero}>#{item.numeroItem}</Text>
               <Text style={styles.descripcion}>{item.descripcion}</Text>
