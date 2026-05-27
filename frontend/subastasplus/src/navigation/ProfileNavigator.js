@@ -6,6 +6,8 @@ import CuentaNacionalScreen from '../screens/mediosPago/CuentaNacionalScreen';
 import CuentaExteriorScreen from '../screens/mediosPago/CuentaExteriorScreen';
 import TarjetaScreen from '../screens/mediosPago/TarjetaScreen';
 import ChequeScreen from '../screens/mediosPago/ChequeScreen';
+import HistorialVentasScreen from '../screens/profile/HistorialVentasScreen';
+import VentaDetalleScreen from '../screens/ventas/VentaDetalleScreen';
 
 const Stack = createStackNavigator();
 
@@ -18,6 +20,8 @@ export default function ProfileNavigator() {
       <Stack.Screen name="cuenta-exterior" component={CuentaExteriorScreen} />
       <Stack.Screen name="tarjeta" component={TarjetaScreen} />
       <Stack.Screen name="cheque" component={ChequeScreen} />
+      <Stack.Screen name="HistorialVentas" component={HistorialVentasScreen} />
+      <Stack.Screen name="VentaDetalle" component={VentaDetalleScreen} />
     </Stack.Navigator>
   );
 }

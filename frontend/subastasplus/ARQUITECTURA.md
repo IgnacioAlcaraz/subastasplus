@@ -159,6 +159,8 @@ Stack navigator dentro del tab Perfil.
 - cuenta-exterior → CuentaExteriorScreen
 - tarjeta → TarjetaScreen
 - cheque → ChequeScreen
+- HistorialVentas → HistorialVentasScreen
+- VentaDetalle → VentaDetalleScreen (registrado aquí para que HistorialVentasScreen pueda navegar al detalle sin cruzar tabs; los items "vendida" no tienen botones de acción adicionales)
 
 ### src/navigation/AuctionsNavigator.js
 Stack navigator dentro del tab Subastas. Permite navegar al detalle sin perder el tab bar.
@@ -258,6 +260,11 @@ Exporta también SERVER_URL (http://<host>:3000) para construir URLs de imágene
 |---|---|---|
 | getPiezaById(id) | GET | /piezas/:id |
 
+### src/api/historial.js
+| Función | Método | Endpoint |
+|---|---|---|
+| getHistorialVentas(page) | GET | /historial/ventas?page=<page> |
+
 ---
 
 ## Componentes comunes
@@ -330,7 +337,17 @@ Props: onRetry
 - Estilos desde colors.js y typography.js
 - La renderiza cada pantalla cuando su carga de datos falla con error de servidor (5xx); onRetry vuelve a ejecutar la carga
 - Patrón de uso en pantallas: estado errorServidor + función de carga (useCallback); en el catch, si esErrorServidor(error) → setErrorServidor(true), sino Alert como antes
-- Wired en todas las pantallas que cargan datos: HomeScreen, AuctionsScreen, AuctionDetailScreen, CatalogScreen, PieceDetailScreen, VentasScreen, VentaDetalleScreen, ProfileScreen
+- Wired en todas las pantallas que cargan datos: HomeScreen, AuctionsScreen, AuctionDetailScreen, CatalogScreen, PieceDetailScreen, VentasScreen, VentaDetalleScreen, ProfileScreen, HistorialVentasScreen
+
+### src/components/common/CardHistorialVenta.js
+Props: item, onPress
+
+- Fila con thumbnail autenticado (56×56, arraybuffer → base64, fallback gris), nombre del bien, precio neto formateado y fecha
+- Precio neto = `precioVenta × (1 − comisiones/100)`, redondeado a entero. Formato: `"US$ 13.376 neto"`. Mapping de moneda: USD → "US$", EUR → "€", GBP → "£"
+- Fecha: `fechaCreacion` ISO formateada a `DD/MM/YYYY`
+- Imagen cargada con `client.get` + arraybuffer (Bearer token inyectado por el interceptor de client.js)
+- Chevron `›` a la derecha
+- Usado en HistorialVentasScreen
 
 ### src/components/OfflineGate.js
 Props: children
@@ -584,6 +601,15 @@ Endpoints: GET /perfil, PUT /perfil/foto, GET /perfil/foto
 - Card blanca con ítems de menú (ProfileMenuItem): Medios de pago navega a MediosPagoScreen; el resto (Historial compras, Historial ventas, Métricas, Multa a pagar) pendientes de conectar
 - Botón "Cerrar sesión" fijo en la parte inferior (Button variant="danger") abre un ConfirmModal ("Cerrar sesión" / "¿Querés cerrar tu sesión?...", confirmText "Cerrar"); al confirmar llama a logout() del AuthContext
 
+### src/screens/profile/HistorialVentasScreen.js
+Endpoint: GET /historial/ventas
+
+- Accesible desde ProfileScreen → ítem "Historial ventas"
+- FlatList de bienes vendidos (solo estado `vendida`) usando CardHistorialVenta; pull to refresh
+- Estado vacío: "Aún no tenés ventas registradas"
+- Al tocar un item navega a VentaDetalle (registrado en ProfileNavigator)
+- ServerErrorScreen en error 5xx
+
 ### src/screens/mediosPago/MediosPagoScreen.js
 Endpoint: GET /medios-pago
 
@@ -691,6 +717,8 @@ Llamado desde:
 | GET /historial/participaciones/:id/pujas | token |
 | GET /historial/ventas | token |
 | GET /historial/metricas | token |
+
+**Cambio en GET /historial/ventas:** filtra solo `estado = "vendida"`. Cada item incluye `precioVenta` (número, la mejor oferta ganadora vía `items_catalogo_estado.mejor_oferta`) y `moneda` (string de la subasta asignada).
 
 ### Multas
 

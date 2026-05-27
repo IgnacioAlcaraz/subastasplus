@@ -113,6 +113,32 @@ exports.pujasDeParticipacion = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
+async function getPrecioVenta(productoId) {
+  if (!productoId) return null;
+  const { data: item } = await supabase
+    .from("items_catalogo")
+    .select("identificador")
+    .eq("producto", productoId)
+    .maybeSingle();
+  if (!item) return null;
+  const { data: estado } = await supabase
+    .from("items_catalogo_estado")
+    .select("mejor_oferta")
+    .eq("identificador", item.identificador)
+    .maybeSingle();
+  return estado?.mejor_oferta != null ? Number(estado.mejor_oferta) : null;
+}
+
+async function getMonedaSubasta(subastaId) {
+  if (!subastaId) return null;
+  const { data: ext } = await supabase
+    .from("subastas_extension")
+    .select("moneda")
+    .eq("subasta", subastaId)
+    .maybeSingle();
+  return ext?.moneda ?? null;
+}
+
 // GET /historial/ventas
 exports.ventas = asyncHandler(async (req, res) => {
   const page = Number(req.query.page) || 1;
@@ -124,15 +150,19 @@ exports.ventas = asyncHandler(async (req, res) => {
     .from("solicitudes_venta")
     .select("*", { count: "exact" })
     .eq("cliente", req.user.sub)
-    .in("estado", ["en_subasta", "vendida", "no_vendida"])
+    .eq("estado", "vendida")
     .range(from, to)
     .order("identificador", { ascending: false });
   if (error) throw error;
 
-  res.json({
-    data: (data || []).map((row) => solicitudShape({ row })),
-    meta: paginate({ page, limit, total: count || 0 }),
-  });
+  const result = [];
+  for (const row of data || []) {
+    const precioVenta = await getPrecioVenta(row.producto);
+    const moneda = await getMonedaSubasta(row.subasta_asignada);
+    result.push({ ...solicitudShape({ row, precioVenta }), moneda });
+  }
+
+  res.json({ data: result, meta: paginate({ page, limit, total: count || 0 }) });
 });
 
 // GET /historial/metricas
