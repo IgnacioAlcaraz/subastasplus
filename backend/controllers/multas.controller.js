@@ -13,6 +13,8 @@ function multaShape(m) {
   return {
     id: String(m.identificador),
     compraId: m.registro != null ? String(m.registro) : null,
+    piezaId: m._reg?.producto != null ? String(m._reg.producto) : null,
+    subastaId: m._reg?.subasta != null ? String(m._reg.subasta) : null,
     montoOriginal: m.monto_original != null ? Number(m.monto_original) : null,
     montoMulta: m.monto_multa != null ? Number(m.monto_multa) : null,
     moneda: m.moneda || "ARS",
@@ -23,19 +25,19 @@ function multaShape(m) {
 }
 
 async function multasDelUsuario(clienteId) {
-  // multas no tiene FK a cliente directo. JOIN via registro_de_subasta.cliente
   const { data: registros } = await supabase
     .from("registro_de_subasta")
-    .select("identificador")
+    .select("identificador, producto, subasta")
     .eq("cliente", clienteId);
   const regIds = (registros || []).map((r) => r.identificador);
   if (!regIds.length) return [];
+  const regMap = Object.fromEntries((registros || []).map((r) => [r.identificador, r]));
   const { data: multas } = await supabase
     .from("multas")
     .select("*")
     .in("registro", regIds)
     .order("identificador", { ascending: false });
-  return multas || [];
+  return (multas || []).map((m) => ({ ...m, _reg: regMap[m.registro] || {} }));
 }
 
 // GET /multas
