@@ -192,8 +192,8 @@ exports.detalle = asyncHandler(async (req, res) => {
 exports.aceptarCondiciones = asyncHandler(async (req, res) => {
   const row = await findOwn(Number(req.params.id), req.user.sub);
 
-  if (row.estado !== 'aceptada') {
-    throw new HttpError(409, 'SOLICITUD_ESTADO_INVALIDO', 'Solo podés aceptar condiciones cuando la solicitud fue aceptada por la empresa.', { estadoActual: row.estado });
+  if (row.estado !== 'propuesta_pendiente') {
+    throw new HttpError(409, 'SOLICITUD_ESTADO_INVALIDO', 'Solo podés aceptar o rechazar condiciones cuando hay una propuesta pendiente.', { estadoActual: row.estado });
   }
 
   const { aceptaValorBase, aceptaComisiones, cuentaCobro } = req.body || {};
@@ -201,7 +201,7 @@ exports.aceptarCondiciones = asyncHandler(async (req, res) => {
   if (aceptaValorBase !== true || aceptaComisiones !== true) {
     // Rechazó condiciones → estado=rechazada
     const updated = await SolicitudesVenta.update(row.identificador, {
-      estado: "rechazada",
+      estado: "rechazada_cliente",
       motivo_rechazo: "El cliente no aceptó valor base y/o comisiones.",
     });
     throw new HttpError(
@@ -241,7 +241,7 @@ exports.aceptarCondiciones = asyncHandler(async (req, res) => {
   }
 
   const updated = await SolicitudesVenta.update(row.identificador, {
-    estado: "aceptada",
+    estado: "esperando_entrega",
     cuenta_cobro_tipo: cuentaCobro.tipo,
     cuenta_cobro_banco: cuentaCobro.banco || null,
     cuenta_cobro_titular: cuentaCobro.titular || null,

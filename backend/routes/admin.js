@@ -22,6 +22,8 @@ router.post("/solicitudes-venta/:id/aceptar", solicitudesVentaCtrl.aceptar);
 router.post("/solicitudes-venta/:id/rechazar", solicitudesVentaCtrl.rechazar);
 router.post("/solicitudes-venta/:id/asignar-subasta", solicitudesVentaCtrl.asignarSubasta);
 router.post("/solicitudes-venta/:id/seguro", solicitudesVentaCtrl.crearSeguro);
+router.post("/solicitudes-venta/:id/confirmar-recepcion", solicitudesVentaCtrl.confirmarRecepcion);
+router.post("/solicitudes-venta/:id/rechazar-deposito", solicitudesVentaCtrl.rechazarDeposito);
 
 // Gestión de subastas
 router.post("/subastas", subastasCtrl.crear);

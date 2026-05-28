@@ -60,6 +60,7 @@ export default function AceptarCondicionesScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
 
   const neto = solicitud.valorBase * (1 - solicitud.comisiones / 100);
+  const sym = solicitud.moneda === 'ARS' ? '$' : 'US$';
 
   useEffect(() => {
     getPaises()
@@ -125,9 +126,9 @@ export default function AceptarCondicionesScreen({ navigation, route }) {
       <Text style={styles.title}>Confirmar condiciones</Text>
 
       <View style={styles.infoCard}>
-        <Text style={styles.infoRow}>Base: US$ {fmt(solicitud.valorBase)} · Com: {solicitud.comisiones}%</Text>
-        <Text style={styles.infoNeto}>Neto: US$ {fmt(neto)}</Text>
-        <Text style={styles.infoRow}>Costo de envío al depósito: US$ {fmt(solicitud.costoEnvio)}</Text>
+        <Text style={styles.infoRow}>Base: {sym} {fmt(solicitud.valorBase)} · Com: {solicitud.comisiones}%</Text>
+        <Text style={styles.infoNeto}>Neto: {sym} {fmt(neto)}</Text>
+        <Text style={styles.infoRow}>Costo de envío al depósito: {sym} {fmt(solicitud.costoEnvio)}</Text>
       </View>
 
       <Text style={styles.sectionLabel}>Cuenta de cobro</Text>

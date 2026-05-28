@@ -10,22 +10,28 @@ import { SERVER_URL, esErrorServidor } from '../../api/client';
 import ServerErrorScreen from '../../components/common/ServerErrorScreen';
 
 const ESTADO_COLOR = {
-  borrador: colors.textDisabled,
   enviada: colors.textSecondary,
-  en_revision: colors.textSecondary,
-  aceptada: colors.primary,
-  rechazada: colors.error,
+  en_revision_virtual: colors.textSecondary,
+  propuesta_pendiente: colors.primary,
+  esperando_entrega: colors.primary,
+  en_revision_fisica: colors.textSecondary,
+  rechazada_admin: colors.error,
+  rechazada_cliente: colors.error,
+  rechazada_deposito: colors.error,
   en_subasta: colors.primaryDark,
   vendida: colors.textDisabled,
   no_vendida: colors.textDisabled,
 };
 
 const ESTADO_LABEL = {
-  borrador: 'Borrador',
   enviada: 'Enviada',
-  en_revision: 'En revisión',
-  aceptada: 'Aceptada',
-  rechazada: 'Rechazada',
+  en_revision_virtual: 'En revisión',
+  propuesta_pendiente: 'Propuesta recibida',
+  esperando_entrega: 'Esperando entrega',
+  en_revision_fisica: 'En revisión física',
+  rechazada_admin: 'Rechazada',
+  rechazada_cliente: 'Rechazada',
+  rechazada_deposito: 'Rechazada',
   en_subasta: 'En subasta',
   vendida: 'Vendida',
   no_vendida: 'No vendida',
@@ -65,9 +71,7 @@ export default function VentasScreen({ navigation }) {
   }
 
   function renderItem({ item }) {
-    const label = item.estado === 'aceptada' && item.cuentaCobro != null
-      ? 'Esperando entrega'
-      : (ESTADO_LABEL[item.estado] ?? item.estado ?? '');
+    const label = ESTADO_LABEL[item.estado] ?? item.estado ?? '';
     const badgeColor = ESTADO_COLOR[item.estado] ?? colors.textSecondary;
     const imageUri = item.imagenes?.length > 0
       ? `${SERVER_URL}${item.imagenes[0]}`

@@ -21,6 +21,7 @@ function solicitudShape({ row, subastaAsignada = null, poliza = null, fotosCount
     curiosidades: row.curiosidades || null,
     declaracionPropiedad: row.declaracion_propiedad === "si",
     estado: row.estado,
+    moneda: row.moneda || 'USD',
     costoEnvio: row.costo_envio != null ? Number(row.costo_envio) : null,
     motivoRechazo: row.motivo_rechazo || null,
     valorBase: row.valor_base != null ? Number(row.valor_base) : null,
@@ -78,11 +79,14 @@ function contactoAseguradoraShape(seguro, ext) {
 
 const TIPOS_VALIDOS = ["arte", "antiguedad", "joya", "vehiculo", "mueble", "otro"];
 const ESTADOS_VALIDOS = [
-  "borrador",
   "enviada",
-  "en_revision",
-  "aceptada",
-  "rechazada",
+  "en_revision_virtual",
+  "propuesta_pendiente",
+  "esperando_entrega",
+  "en_revision_fisica",
+  "rechazada_admin",
+  "rechazada_cliente",
+  "rechazada_deposito",
   "en_subasta",
   "vendida",
   "no_vendida",

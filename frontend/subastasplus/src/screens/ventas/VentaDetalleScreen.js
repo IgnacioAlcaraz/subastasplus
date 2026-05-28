@@ -30,6 +30,10 @@ function fmt(n) {
   return n?.toLocaleString('es-AR', { minimumFractionDigits: 0 }) ?? '—';
 }
 
+function monedaSimbolo(moneda) {
+  return moneda === 'ARS' ? '$' : 'US$';
+}
+
 function Carrusel({ imagenes, token }) {
   const [activa, setActiva] = useState(0);
   const ancho = Dimensions.get('window').width;
@@ -82,13 +86,14 @@ function ContenidoPendiente({ solicitud }) {
 
 function ContenidoAceptada({ solicitud, navigation, onRechazar, rechazando }) {
   const neto = solicitud.valorBase * (1 - solicitud.comisiones / 100);
+  const sym = monedaSimbolo(solicitud.moneda);
 
   return (
     <View style={styles.body}>
       <Text style={styles.valorLabel}>Valor base propuesto</Text>
-      <Text style={styles.valorPrecio}>US$ {fmt(solicitud.valorBase)}</Text>
-      <Text style={styles.meta}>Comisión: {solicitud.comisiones}% - Neto: US$ {fmt(neto)}</Text>
-      <Text style={styles.meta}>Costo de envío: US$ {fmt(solicitud.costoEnvio)}</Text>
+      <Text style={styles.valorPrecio}>{sym} {fmt(solicitud.valorBase)}</Text>
+      <Text style={styles.meta}>Comisión: {solicitud.comisiones}% - Neto: {sym} {fmt(neto)}</Text>
+      <Text style={styles.meta}>Costo de envío: {sym} {fmt(solicitud.costoEnvio)}</Text>
 
       <View style={styles.btns}>
         <Button
@@ -120,13 +125,14 @@ function ContenidoVendida({ solicitud }) {
   const comision = precio * (solicitud.comisiones / 100);
   const neto = precio - comision;
   const cbu = solicitud.cuentaCobro?.cbu;
+  const sym = monedaSimbolo(solicitud.moneda);
 
   return (
     <View style={styles.body}>
       <Text style={styles.nombre}>{solicitud.nombreBien || solicitud.descripcion} vendido!</Text>
-      <Text style={styles.meta}>Venta: US$ {fmt(precio)}</Text>
-      <Text style={styles.meta}>Comisión: -US$ {fmt(comision)}</Text>
-      <Text style={styles.valorPrecio}>Neto: US$ {fmt(neto)}</Text>
+      <Text style={styles.meta}>Venta: {sym} {fmt(precio)}</Text>
+      <Text style={styles.meta}>Comisión: -{sym} {fmt(comision)}</Text>
+      <Text style={styles.valorPrecio}>Neto: {sym} {fmt(neto)}</Text>
       {cbu ? <Text style={styles.meta}>Cuenta: CBU {maskCbu(cbu)}</Text> : null}
     </View>
   );
@@ -136,19 +142,21 @@ function ContenidoNoVendida({ solicitud }) {
   const precio = solicitud.valorBase;
   const comision = precio * (solicitud.comisiones / 100);
   const neto = precio - comision;
+  const sym = monedaSimbolo(solicitud.moneda);
 
   return (
     <View style={styles.body}>
       <Text style={styles.nombre}>Nadie pujo</Text>
-      <Text style={styles.meta}>Empresa compró al base: US$ {fmt(precio)}</Text>
+      <Text style={styles.meta}>Empresa compró al base: {sym} {fmt(precio)}</Text>
       <Text style={styles.meta}>
-        Comisión: -US$ {fmt(comision)} | Neto: US$ {fmt(neto)}
+        Comisión: -{sym} {fmt(comision)} | Neto: {sym} {fmt(neto)}
       </Text>
     </View>
   );
 }
 
 function ContenidoEnSubasta({ solicitud, navigation }) {
+  const sym = monedaSimbolo(solicitud.moneda);
   return (
     <View style={styles.body}>
       <Text style={styles.nombre}>{solicitud.nombreBien || solicitud.descripcion}</Text>
@@ -162,7 +170,7 @@ function ContenidoEnSubasta({ solicitud, navigation }) {
 
       <View style={styles.infoCard}>
         <Text style={styles.infoCardTitulo}>Valor base</Text>
-        <Text style={styles.valorPrecio}>US$ {fmt(solicitud.valorBase)}</Text>
+        <Text style={styles.valorPrecio}>{sym} {fmt(solicitud.valorBase)}</Text>
         <Text style={styles.meta}>Comisión: {solicitud.comisiones}%</Text>
       </View>
 
@@ -191,6 +199,7 @@ function ContenidoEnSubasta({ solicitud, navigation }) {
 }
 
 function ContenidoEsperandoEntrega({ solicitud }) {
+  const sym = monedaSimbolo(solicitud.moneda);
   return (
     <View style={styles.body}>
       <Text style={styles.nombre}>Esperando entrega</Text>
@@ -207,9 +216,9 @@ function ContenidoEsperandoEntrega({ solicitud }) {
 
       <View style={styles.infoCard}>
         <Text style={styles.infoCardTitulo}>Condiciones acordadas</Text>
-        <Text style={styles.meta}>Valor base: US$ {fmt(solicitud.valorBase)}</Text>
+        <Text style={styles.meta}>Valor base: {sym} {fmt(solicitud.valorBase)}</Text>
         <Text style={styles.meta}>Comisión: {solicitud.comisiones}%</Text>
-        <Text style={styles.meta}>Neto estimado: US$ {fmt(solicitud.valorBase * (1 - solicitud.comisiones / 100))}</Text>
+        <Text style={styles.meta}>Neto estimado: {sym} {fmt(solicitud.valorBase * (1 - solicitud.comisiones / 100))}</Text>
       </View>
 
       <Text style={styles.meta}>
@@ -219,24 +228,35 @@ function ContenidoEsperandoEntrega({ solicitud }) {
   );
 }
 
-function ContenidoRechazada({ solicitud }) {
-  const rechazadoPorAdminInicial = solicitud.valorBase == null;
-  const rechazadoPorCliente = solicitud.valorBase != null && solicitud.cuentaCobro == null;
-  const rechazadoPorAdminFinal = solicitud.valorBase != null && solicitud.cuentaCobro != null;
+function ContenidoRevisionFisica({ solicitud }) {
+  const neto = solicitud.valorBase * (1 - solicitud.comisiones / 100);
+  const sym = monedaSimbolo(solicitud.moneda);
+  return (
+    <View style={styles.body}>
+      <Text style={styles.nombre}>En revisión física</Text>
+      <Text style={styles.esperando}>
+        Tu bien llegó a nuestro depósito y está siendo inspeccionado.
+      </Text>
 
-  if (rechazadoPorAdminInicial) {
-    return (
-      <View style={styles.body}>
-        <Text style={styles.nombre}>Solicitud rechazada</Text>
-        {solicitud.motivoRechazo ? (
-          <Text style={styles.esperando}>{solicitud.motivoRechazo}</Text>
-        ) : null}
-        <Text style={styles.meta}>No se aplicaron cargos.</Text>
+      {solicitud.ubicacionDeposito ? (
+        <View style={styles.infoCard}>
+          <Text style={styles.infoCardTitulo}>Depósito</Text>
+          <Text style={styles.meta}>{solicitud.ubicacionDeposito}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.infoCard}>
+        <Text style={styles.infoCardTitulo}>Condiciones acordadas</Text>
+        <Text style={styles.meta}>Valor base: {sym} {fmt(solicitud.valorBase)}</Text>
+        <Text style={styles.meta}>Comisión: {solicitud.comisiones}%</Text>
+        <Text style={styles.meta}>Neto estimado: {sym} {fmt(neto)}</Text>
       </View>
-    );
-  }
+    </View>
+  );
+}
 
-  if (rechazadoPorCliente) {
+function ContenidoRechazada({ solicitud }) {
+  if (solicitud.estado === 'rechazada_cliente') {
     return (
       <View style={styles.body}>
         <Text style={styles.nombre}>Rechazaste la propuesta</Text>
@@ -245,22 +265,35 @@ function ContenidoRechazada({ solicitud }) {
     );
   }
 
+  if (solicitud.estado === 'rechazada_deposito') {
+    return (
+      <View style={styles.body}>
+        <Text style={styles.nombre}>Bien rechazado en depósito</Text>
+        {solicitud.motivoRechazo ? (
+          <Text style={styles.esperando}>{solicitud.motivoRechazo}</Text>
+        ) : null}
+        {solicitud.costoEnvio != null ? (
+          <View style={[styles.devolucionCard, { marginTop: 16 }]}>
+            <Text style={styles.metaBold}>Devolución en proceso</Text>
+            <Text style={styles.meta}>Costo: US$ {fmt(solicitud.costoEnvio)}</Text>
+            {solicitud.direccionEnvio ? (
+              <Text style={styles.meta}>Dir: {solicitud.direccionEnvio}</Text>
+            ) : null}
+            <Text style={styles.metaBold}>Estado: En tránsito</Text>
+          </View>
+        ) : null}
+      </View>
+    );
+  }
+
+  // rechazada_admin
   return (
     <View style={styles.body}>
-      <Text style={styles.nombre}>Bien rechazado en depósito</Text>
+      <Text style={styles.nombre}>Solicitud rechazada</Text>
       {solicitud.motivoRechazo ? (
         <Text style={styles.esperando}>{solicitud.motivoRechazo}</Text>
       ) : null}
-      {solicitud.costoEnvio != null ? (
-        <View style={[styles.devolucionCard, { marginTop: 16 }]}>
-          <Text style={styles.metaBold}>Devolución en proceso</Text>
-          <Text style={styles.meta}>Costo: US$ {fmt(solicitud.costoEnvio)}</Text>
-          {solicitud.direccionEnvio ? (
-            <Text style={styles.meta}>Dir: {solicitud.direccionEnvio}</Text>
-          ) : null}
-          <Text style={styles.metaBold}>Estado: En tránsito</Text>
-        </View>
-      ) : null}
+      <Text style={styles.meta}>No se aplicaron cargos.</Text>
     </View>
   );
 }
@@ -339,14 +372,17 @@ export default function VentaDetalleScreen({ navigation, route }) {
 
   function renderContenido() {
     switch (solicitud.estado) {
-      case 'en_revision':
+      case 'en_revision_virtual':
         return <ContenidoPendiente solicitud={solicitud} />;
-      case 'aceptada':
-        if (solicitud.cuentaCobro != null) {
-          return <ContenidoEsperandoEntrega solicitud={solicitud} />;
-        }
+      case 'propuesta_pendiente':
         return <ContenidoAceptada solicitud={solicitud} navigation={navigation} onRechazar={confirmarRechazo} rechazando={rechazando} />;
-      case 'rechazada':
+      case 'esperando_entrega':
+        return <ContenidoEsperandoEntrega solicitud={solicitud} />;
+      case 'en_revision_fisica':
+        return <ContenidoRevisionFisica solicitud={solicitud} />;
+      case 'rechazada_admin':
+      case 'rechazada_cliente':
+      case 'rechazada_deposito':
         return <ContenidoRechazada solicitud={solicitud} />;
       case 'en_subasta':
         return <ContenidoEnSubasta solicitud={solicitud} navigation={navigation} />;

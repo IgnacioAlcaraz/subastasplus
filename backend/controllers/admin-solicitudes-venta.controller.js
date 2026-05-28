@@ -68,21 +68,21 @@ exports.revisar = asyncHandler(async (req, res) => {
       estadoActual: row.estado,
     });
   }
-  const updated = await SolicitudesVenta.update(row.identificador, { estado: "en_revision" });
+  const updated = await SolicitudesVenta.update(row.identificador, { estado: "en_revision_virtual" });
   res.json(solicitudShape({ row: updated }));
 });
 
 // POST /admin/solicitudes-venta/:id/aceptar
-// Body: { valorBase, comisiones, ubicacionDeposito, direccionEnvio }
+// Body: { valorBase, comisiones, ubicacionDeposito, direccionEnvio, moneda }
 exports.aceptar = asyncHandler(async (req, res) => {
   const row = await findSolicitud(Number(req.params.id));
-  if (row.estado !== "en_revision") {
-    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede aceptar una solicitud en estado 'en_revision'.", {
+  if (row.estado !== "en_revision_virtual") {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede aceptar una solicitud en estado 'en_revision_virtual'.", {
       estadoActual: row.estado,
     });
   }
 
-  const { valorBase, comisiones, ubicacionDeposito, direccionEnvio } = req.body || {};
+  const { valorBase, comisiones, ubicacionDeposito, direccionEnvio, moneda } = req.body || {};
   if (!valorBase || Number(valorBase) <= 0) {
     throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "valorBase es requerido y debe ser mayor a 0.", {
       campo: "valorBase",
@@ -94,6 +94,8 @@ exports.aceptar = asyncHandler(async (req, res) => {
   if (!ubicacionDeposito || !String(ubicacionDeposito).trim()) {
     throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "ubicacionDeposito es requerido.", { campo: "ubicacionDeposito" });
   }
+
+  const monedaValida = ["USD", "ARS"].includes(moneda) ? moneda : "USD";
 
   const duenio = await findOrCreateDuenio(row.cliente);
 
@@ -135,13 +137,14 @@ exports.aceptar = asyncHandler(async (req, res) => {
 
   // Actualizar solicitud
   const updated = await SolicitudesVenta.update(row.identificador, {
-    estado: "aceptada",
+    estado: "propuesta_pendiente",
     valor_base: Number(valorBase),
     comisiones: Number(comisiones),
     costo_envio: Number((Number(valorBase) * 0.02).toFixed(2)),
     ubicacion_deposito: ubicacionDeposito || null,
     direccion_envio: direccionEnvio || null,
     producto: producto.identificador,
+    moneda: monedaValida,
   });
 
   await crearNotificacion(row.cliente, {
@@ -158,8 +161,8 @@ exports.aceptar = asyncHandler(async (req, res) => {
 // Body: { motivoRechazo }
 exports.rechazar = asyncHandler(async (req, res) => {
   const row = await findSolicitud(Number(req.params.id));
-  if (!["enviada", "en_revision", "aceptada"].includes(row.estado)) {
-    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede rechazar una solicitud en estado 'enviada', 'en_revision' o 'aceptada'.", {
+  if (!["enviada", "en_revision_virtual", "propuesta_pendiente"].includes(row.estado)) {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede rechazar una solicitud en estado 'enviada', 'en_revision_virtual' o 'propuesta_pendiente'.", {
       estadoActual: row.estado,
     });
   }
@@ -170,7 +173,7 @@ exports.rechazar = asyncHandler(async (req, res) => {
   }
 
   const updated = await SolicitudesVenta.update(row.identificador, {
-    estado: "rechazada",
+    estado: "rechazada_admin",
     motivo_rechazo: String(motivoRechazo).slice(0, 2000),
     costo_envio: costoDevolucion ? Number(costoDevolucion) : null,
     direccion_envio: direccionDevolucion ? String(direccionDevolucion) : null,
@@ -190,8 +193,8 @@ exports.rechazar = asyncHandler(async (req, res) => {
 // Body: { subastaId }
 exports.asignarSubasta = asyncHandler(async (req, res) => {
   const row = await findSolicitud(Number(req.params.id));
-  if (row.estado !== "aceptada") {
-    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede asignar a subasta una solicitud en estado 'aceptada'.", {
+  if (row.estado !== "en_revision_fisica") {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede asignar a subasta una solicitud en estado 'en_revision_fisica'.", {
       estadoActual: row.estado,
     });
   }
@@ -243,8 +246,8 @@ exports.asignarSubasta = asyncHandler(async (req, res) => {
 // Body: { nroPoliza, compania, valorAsegurado, telefono, email, web }
 exports.crearSeguro = asyncHandler(async (req, res) => {
   const row = await findSolicitud(Number(req.params.id));
-  if (!["aceptada", "en_subasta"].includes(row.estado)) {
-    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede crear un seguro para solicitudes aceptadas o en subasta.", {
+  if (!["en_revision_fisica", "en_subasta"].includes(row.estado)) {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede crear un seguro para solicitudes en revisión física o en subasta.", {
       estadoActual: row.estado,
     });
   }
@@ -260,8 +263,7 @@ exports.crearSeguro = asyncHandler(async (req, res) => {
   const seguro = await Seguros.create({
     nro_poliza: nroPoliza,
     compania,
-    importe: Number(valorAsegurado),
-    cliente: row.cliente,
+    importe: Number(valorAsegurado)
   });
 
   await SegurosExtension.create({
@@ -274,4 +276,50 @@ exports.crearSeguro = asyncHandler(async (req, res) => {
   await SolicitudesVenta.update(row.identificador, { seguro: seguro.nro_poliza });
 
   res.status(201).json(polizaShape(seguro));
+});
+
+// POST /admin/solicitudes-venta/:id/confirmar-recepcion
+exports.confirmarRecepcion = asyncHandler(async (req, res) => {
+  const row = await findSolicitud(Number(req.params.id));
+  if (row.estado !== "esperando_entrega") {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede confirmar recepción de una solicitud en estado 'esperando_entrega'.", {
+      estadoActual: row.estado,
+    });
+  }
+  const updated = await SolicitudesVenta.update(row.identificador, { estado: "en_revision_fisica" });
+  await crearNotificacion(row.cliente, {
+    tipo: "solicitud_venta",
+    titulo: "Bien recibido en depósito",
+    mensaje: "Tu bien llegó a nuestro depósito y está siendo inspeccionado.",
+    accionUrl: `/solicitudes-venta/${row.identificador}`,
+  });
+  res.json(solicitudShape({ row: updated }));
+});
+
+// POST /admin/solicitudes-venta/:id/rechazar-deposito
+exports.rechazarDeposito = asyncHandler(async (req, res) => {
+  const row = await findSolicitud(Number(req.params.id));
+  if (row.estado !== "en_revision_fisica") {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede rechazar en depósito una solicitud en estado 'en_revision_fisica'.", {
+      estadoActual: row.estado,
+    });
+  }
+  const { motivoRechazo, costoDevolucion, direccionDevolucion } = req.body || {};
+  if (!motivoRechazo || !String(motivoRechazo).trim()) {
+    throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "motivoRechazo es requerido.", { campo: "motivoRechazo" });
+  }
+  const updateData = {
+    estado: "rechazada_deposito",
+    motivo_rechazo: String(motivoRechazo).slice(0, 2000),
+    costo_envio: costoDevolucion ? Number(costoDevolucion) : null,
+    direccion_envio: direccionDevolucion ? String(direccionDevolucion) : null,
+  };
+  const updated = await SolicitudesVenta.update(row.identificador, updateData);
+  await crearNotificacion(row.cliente, {
+    tipo: "solicitud_venta",
+    titulo: "Bien rechazado en depósito",
+    mensaje: `Tu bien no superó la inspección física. Motivo: ${motivoRechazo}`,
+    accionUrl: `/solicitudes-venta/${row.identificador}`,
+  });
+  res.json(solicitudShape({ row: updated }));
 });
