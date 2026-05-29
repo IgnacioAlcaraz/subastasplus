@@ -29,5 +29,6 @@ router.post("/solicitudes-venta/:id/rechazar-deposito", solicitudesVentaCtrl.rec
 router.post("/subastas", subastasCtrl.crear);
 router.put("/subastas/:id", subastasCtrl.actualizar);
 router.post("/subastas/:id/items", subastasCtrl.agregarItem);
+router.post("/subastas/:id/items/:itemId/cerrar", subastasCtrl.cerrarItem);
 
 module.exports = router;

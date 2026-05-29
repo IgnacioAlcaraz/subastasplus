@@ -22,6 +22,13 @@ src/
 ├── context/      # Estado global (sesión del usuario)
 ├── navigation/   # Navigators (stacks y tabs)
 └── screens/      # Pantallas, una carpeta por dominio
+    ├── auth/
+    ├── auctions/
+    ├── compras/  # Flujo de pago post-subasta ganada
+    ├── home/
+    ├── mediosPago/
+    ├── profile/
+    └── ventas/
 
 
 ---
@@ -163,11 +170,17 @@ Stack navigator dentro del tab Perfil.
 - VentaDetalle → VentaDetalleScreen (registrado aquí para que HistorialVentasScreen pueda navegar al detalle sin cruzar tabs; los items "vendida" no tienen botones de acción adicionales)
 
 ### src/navigation/AuctionsNavigator.js
-Stack navigator dentro del tab Subastas. Permite navegar al detalle sin perder el tab bar.
+Stack navigator dentro del tab Subastas. Aloja todo el flujo desde el listado hasta el pago post-subasta ganada, en un único stack para mantener el historial de navegación y el tab bar visible.
 - AuctionsList → AuctionsScreen
 - AuctionDetail → AuctionDetailScreen
 - Catalog → CatalogScreen
 - PieceDetail → PieceDetailScreen
+- PreIngreso → PreIngresoScreen
+- Sala → SalaScreen
+- SelMedioPago → SelMedioPagoCompraScreen
+- FacturaCompra → FacturaCompraScreen
+- EntregaCompra → EntregaCompraScreen
+- ResultadoCompra → ResultadoCompraScreen
 
 ### src/navigation/MedioPagoNavigator.js
 Stack navigator renderizado por RootNavigator cuando status === 'requires_medio_pago'.
@@ -245,6 +258,9 @@ Exporta también SERVER_URL (http://<host>:3000) para construir URLs de imágene
 | getSubastas(estado, page) | GET | /subastas?estado=<estado>&page=<page> |
 | getSubastaById(id) | GET | /subastas/:id |
 | getCatalogo(subastaId, page) | GET | /subastas/:id/catalogo |
+| getSala(subastaId) | GET | /subastas/:id/sala |
+| realizarPuja(subastaId, monto) | POST | /subastas/:id/pujas |
+| salirSala(subastaId) | POST | /subastas/:id/sala/salir |
 
 ### src/api/solicitudesVenta.js
 | Función | Método | Endpoint |
@@ -264,6 +280,12 @@ Exporta también SERVER_URL (http://<host>:3000) para construir URLs de imágene
 | Función | Método | Endpoint |
 |---|---|---|
 | getHistorialVentas(page) | GET | /historial/ventas?page=<page> |
+
+### src/api/compras.js
+| Función | Método | Endpoint |
+|---|---|---|
+| getCompra(id) | GET | /compras/:id |
+| pagarCompra(id, { medioPagoId, metodoEntrega, direccionEnvio }) | POST | /compras/:id/pagar |
 
 ---
 
@@ -305,6 +327,13 @@ Props: item
 - Badge verde "Verificado" si `item.verificado === 'si'`; gris "Pendiente" en caso contrario
 - Lógica de título y subtítulo encapsulada por tipo: cuenta_nacional, cuenta_exterior, tarjeta, cheque
 - Usado en MediosPagoScreen
+
+### src/components/common/AuctionCard.js
+Props: subasta, onPress, variant ('list' | 'featured' | 'compact')
+
+- list (default): card completa con badge EN VIVO o fecha, título, subtítulo piezas/categoría, badge moneda y botón Entrar. Usado en AuctionsScreen
+- featured: card ancha (280px) para listas horizontales con título, subtítulo y footer. Usado en HomeScreen sección "En vivo"
+- compact: card angosta (160px) con placeholder de imagen, badge de estado y fecha. Usado en HomeScreen sección "Próximas"
 
 ### src/components/common/GuestModal.js
 Props: visible, onClose, variant ('pending' | 'guest'), onLogin, onRegister
@@ -412,18 +441,6 @@ Endpoint: POST /registro/etapa2
 
 ---
 
-## Backend — endpoints creados durante el desarrollo
-
-### GET /v1/paises
-Devuelve todos los países de la tabla paises. Sin autenticación requerida.
-- Controller: backend/controllers/paises.controller.js
-- Route: backend/routes/paises.js
-
-### Modificaciones al backend existente
-- registro.controller.js — verificarToken ahora devuelve categoria cuando el estado es requiere_clave
-
----
-
 ## Pantallas implementadas — app autenticada
 
 ### src/screens/home/HomeScreen.js
@@ -440,7 +457,7 @@ Endpoints: GET /subastas?estado=en_vivo, GET /subastas?estado=finalizada
 
 - 3 tabs: En vivo / Programadas / Finalizadas
 - Carga todas las abierta y todas las finalizada al montar, filtra en frontend por item.estado
-- CardSubasta como componente interno: muestra badge EN VIVO o fecha, título, piezas, moneda, botón Entrar
+- AuctionCard (variant='list') desde components/common/: badge EN VIVO o fecha, título, piezas, moneda, botón Entrar
 - Botón Entrar navega a AuctionDetail pasando id
 
 ### src/screens/auctions/AuctionDetailScreen.js
@@ -450,7 +467,7 @@ Endpoint: GET /subastas/:id
 - Muestra título, badges de categoría y moneda, tabla de info (fecha, hora, ubicación, rematador)
 - fecha y hora se parsean del ISO timestamp que devuelve el backend
 - Botón "Ver catálogo" conectado → navega a Catalog pasando subastaId y moneda
-- Botón "Entrar a subasta": muestra GuestModal (variant=status) si isGuest; lógica de sala pendiente de conectar para usuarios autenticados
+- Botón "Entrar a subasta": muestra GuestModal si isGuest; navega a PreIngreso para usuarios autenticados
 
 ### src/screens/auctions/CatalogScreen.js
 Endpoint: GET /subastas/:id/catalogo
@@ -468,6 +485,93 @@ Endpoint: GET /piezas/:id
 - Imágenes construidas con SERVER_URL + path relativo del backend
 - Badge "Obra de arte" condicional según esObraDeArte
 - Secciones: precio base, historia del artista, subasta asignada (fecha, rematador, ubicación)
+
+### src/screens/auctions/PreIngresoScreen.js
+Endpoint: GET /subastas/:id/sala
+
+- Recibe `subasta` por route.params (del AuctionDetailScreen)
+- Muestra verificación de acceso: categoría del usuario vs. requerida + estado del medio de pago
+- `categoriaOK` y `medioPagoOK` derivados de `subasta.puedeEntrar` y `subasta.razonNoEntrar`
+- Botón "Entrar a la subasta" deshabilitado si alguna verificación falla
+- Al tocar llama `getSala(subastaId)` → navega a SalaScreen con la respuesta
+
+### src/screens/auctions/SalaScreen.js
+Endpoints: POST /subastas/:id/pujas, POST /subastas/:id/sala/salir. La sala inicial llega por route.params desde PreIngresoScreen.
+
+**Tema:** paleta `SALA` completamente oscura definida localmente (#111111 bg, #1C1C1E surface, #2C2C2E surfaceAlt). El modal de confirmación de puja usa tema claro (colors.surface blanco) para distinguirlo visualmente.
+
+**WebSocket:** conecta a `ws://<host>:3000/v1/realtime/subastas/:id?token=<jwt>` al montar. La URL se construye reemplazando `http` por `ws` en `SERVER_URL`. El cleanup cierra la conexión (`ws.close()`) pero NO llama a salirSala — eso lo hace handleSalir explícitamente para evitar doble llamada.
+
+**Eventos WS recibidos:**
+- `puja_nueva` → actualiza `mejorOferta`, recalcula `pujaMinima` y `pujaMaxima` en el estado local usando `precioBase` (que no cambia). Prepend del nuevo pujo a `ultimasPujas` (slice a 10). Si el estado actual es `registrada` → transiciona a `superada`.
+- `pieza_cerrada` → si `ganadorClienteId === user.id` (string) → estado `ganador`; si no → estado `perdedor`.
+
+**`uiStateRef`:** ref sincronizado con `uiState` via useEffect. Necesario porque el callback de WebSocket captura el estado por closure al momento de la suscripción — sin el ref, la condición `uiStateRef.current === "registrada"` leería siempre el valor inicial.
+
+**Máquina de estados (uiState):**
+| Estado | Cuándo | UI |
+|---|---|---|
+| `sala` | Normal | Layout de sala, input activo |
+| `confirmar` | Tap PUJAR | Modal blanco con pieza + monto |
+| `procesando` | POST /pujas en vuelo | Overlay oscuro con "···" |
+| `registrada` | POST exitoso | Overlay oscuro con "OK" + monto |
+| `superada` | WS puja_nueva mientras registrada | Overlay con nueva mejor + oferta propia + "Hacer nueva puja" |
+| `ganador` | WS pieza_cerrada, es el ganador | Overlay oscuro "¡Felicitaciones!" + "Proceder al pago" |
+| `perdedor` | WS pieza_cerrada, no es el ganador | Pantalla blanca "Pieza adjudicada a otro" + monto ganador |
+
+**Parseo del monto:** `parseFloat(String(monto).replace(",", "."))`. Los botones rápidos setean `monto` como string de número JS (con punto decimal), el input permite edición libre.
+
+**Botones rápidos:** +1%, +5%, +10% calculados como `mejorOferta + precioBase * factor`. El backend usa la misma fórmula para validar `pujaMinima`.
+
+**sinMaximo:** `salaInicial.piezaActual?.pujaMaxima === null`. Fijo al montar (no cambia con el WS) porque la categoría del usuario no cambia durante la sesión. Para categorías `oro` y `platino` no hay límite superior.
+
+**handleSalir:** `useCallback` — llama POST /sala/salir (try/catch silencioso) y luego `navigation.goBack()`. También intercepta el hardware back button en Android.
+
+**"Proceder al pago":** navega a `SelMedioPago` pasando `{ compraId, moneda, numeroItem: piezaGanada.numeroItem }`. El `compraId` llega por el evento WS `pieza_cerrada`.
+
+**Si piezaActual es null:** muestra "Esperando inicio de subasta..." sin input ni botones.
+
+### src/screens/compras/SelMedioPagoCompraScreen.js
+Endpoint: GET /medios-pago
+
+- Recibe `{ compraId, moneda, numeroItem }` por route.params
+- Carga todos los medios del usuario y filtra `verificado === true`
+- Si `moneda !== 'ARS'`: filtra además solo `tarjeta_credito` y `cuenta_exterior` — las subastas internacionales no aceptan medios de pago en ARS
+- Muestra lista de medios con `alias` (ya formateado por el backend) + subtitulo derivado del tipo: "Tarjeta int.", "Banco ext.", "Banco nac.", "Cheque cert."
+- Al seleccionar un medio navega a FacturaCompra pasando `{ compraId, moneda, numeroItem, medioPago: { id, alias, subtitulo } }`
+
+### src/screens/compras/FacturaCompraScreen.js
+Endpoint: GET /compras/:id
+
+- Recibe `{ compraId, moneda, numeroItem, medioPago }` por route.params
+- Carga el detalle de la compra al montar
+- Muestra resumen de factura: título de pieza (`#0XX descripción`), importe pujado, comisión (con porcentaje calculado como `Math.round(comisiones/montoPujado*100)`), costo de envío estimado (`Math.round(montoPujado*0.02)`) y total
+- El costo de envío es una estimación frontend del 2% — el valor real lo calcula el backend cuando se llama POST /compras/:id/pagar. Se muestra como orientativo para el usuario
+- Muestra medio de pago seleccionado y moneda al pie
+- "Continuar" navega a EntregaCompra pasando el objeto `compra` completo
+
+### src/screens/compras/EntregaCompraScreen.js
+Endpoint: POST /compras/:id/pagar
+
+- Recibe `{ compraId, compra, medioPago, numeroItem }` por route.params
+- Dos opciones seleccionables con borde verde activo:
+  - **Envío a domicilio**: muestra input de dirección cuando está seleccionado. El costo (2% del importe) se incluye en la factura final
+  - **Retiro personal**: sin costo de envío, badge "PIERDE cobertura de seguro", dirección de depósito fija
+- Validación: si envío, la dirección no puede estar vacía
+- Llama `pagarCompra(compraId, { medioPagoId, metodoEntrega, direccionEnvio })`
+- Éxito → navega a `ResultadoCompra` con `tipo: 'exitosa'`
+- Error 402 → navega a `ResultadoCompra` con `tipo: 'fondos_insuficientes'` (hardcodeado a 'exitosa' mientras se valida el flujo)
+- `compra.avisoSeguro` viene null antes del pago (el backend lo setea post-pago en retiro), la advertencia la muestra el badge directamente
+
+### src/screens/compras/ResultadoCompraScreen.js
+Sin endpoint propio — recibe `tipo` por route.params.
+
+- Variante `exitosa`: círculo "OK" gris claro, "¡Compra realizada!" (bold), botón "Salir" outline
+- Variante `fondos_insuficientes`: círculo "!" gris claro, "No se pudo procesar el pago" (bold), texto explicativo sobre multa del 10% y bloqueo de subastas, botón "Volver al Menu" oscuro (`colors.primaryDark`)
+- Ambos botones llaman `navigation.getParent()?.navigate('Home')` para saltar al tab Home desde dentro del stack de AuctionsNavigator
+- El objeto `CONTENT` centraliza los textos y variante de botón, indexado por `tipo`
+
+---
 
 ### src/screens/ventas/VentasScreen.js
 Endpoint: GET /solicitudes-venta
@@ -515,6 +619,7 @@ Endpoint: GET /solicitudes-venta/:id
   - **rechazada, valorBase==null:** admin rechazó antes de hacer propuesta, sin cargo
   - **rechazada, valorBase!=null, cuentaCobro==null:** cliente rechazó la propuesta, sin cargo
   - **rechazada, valorBase!=null, cuentaCobro!=null:** bien rechazado en depósito, con cargo — card de devolución con costo y dirección
+- "Rechazar propuesta" no tiene endpoint propio: llama a `aceptarCondiciones(id, { aceptaValorBase: false, aceptaComisiones: false, cuentaCobro: { tipo: 'nacional', cbu: '0' } })` — el backend interpreta los falsos como rechazo
   - **en_subasta:** nombre, subasta asignada (id + título), valor base, comisión, depósito, botón "Ver póliza de seguro" → PolizaSeguro
   - **vendida:** nombre + "vendido!", precio de venta (mejor_oferta), comisión, neto, CBU enmascarado (***últimos 4)
   - **no_vendida:** empresa compró al base (valorBase), comisión y neto
@@ -621,6 +726,42 @@ Endpoint: GET /medios-pago
 
 ---
 
+## Backend — Sala en vivo
+
+### WebSocket (`backend/lib/realtime.js`)
+Servidor WebSocket nativo montado sobre el mismo servidor HTTP de Express (sin puerto separado). La URL de conexión es `ws://<host>:3000/v1/realtime/subastas/:id?token=<jwt>`.
+
+El token se valida al hacer el handshake — si es inválido, se cierra la conexión con 401. Los clientes autenticados son agrupados por `subastaId` en un `Map<subastaId, Set<WebSocket>>` en memoria.
+
+**Eventos emitidos por el servidor:**
+
+| Evento | Cuándo | Payload |
+|---|---|---|
+| `bienvenida` | Al conectar | `{ event, subastaId, conectados }` |
+| `conectados` | Cuando cambia el count | `{ event, count }` |
+| `puja_nueva` | POST /pujas exitoso | `{ event, pujo: { id, postorId, monto, timestamp }, mejorOferta }` |
+| `pieza_cerrada` | POST /admin/.../cerrar exitoso | `{ event, itemId, numeroItem, ganadorClienteId, montoGanador, compraId }` |
+
+`pieza_cerrada` incluye `ganadorClienteId` (número entero del cliente ganador) y `compraId` (string). Cada cliente compara `String(ganadorClienteId) === user.id` para saber si ganó.
+
+### Endpoint de cierre de pieza (`backend/controllers/admin-subastas.controller.js`)
+`POST /admin/subastas/:id/items/:itemId/cerrar` — requiere token de admin.
+
+Flujo:
+1. Verifica subasta en estado `abierta` e ítem en estado `en_subasta`
+2. Busca la puja ganadora (`ganador: 'si'`) en la tabla `pujos`
+3. **Sin pujas:** actualiza ítem a `no_vendida`, broadcast `pieza_cerrada` con `ganadorClienteId: null`
+4. **Con puja ganadora:**
+   - Obtiene el cliente via `asistentes` (asistente → cliente)
+   - Crea registro en `registro_de_subasta` (la "compra"): `{ cliente, subasta, producto, importe, comision: Math.round(importe * 0.1) }`
+   - Actualiza ítem a `vendida`
+   - Crea notificación push para el ganador
+   - Broadcast `pieza_cerrada` con todos los datos del ganador y el `compraId` generado
+
+La comisión del comprador es 10% fijo del monto pujado. El costo de envío se calcula al momento de pagar (2% del importe si elige envío, 0 si elige retiro personal).
+
+---
+
 ## Backend — Email Sender (Nodemailer + Gmail)
 
 *Implementado.* Nodemailer con Gmail para dos casos de uso:
@@ -702,11 +843,11 @@ Llamado desde:
 
 ### Compras
 
-| Endpoint | Auth |
-|---|---|
-| GET /compras | token |
-| GET /compras/:id | token |
-| POST /compras/:id/pagar | token |
+| Endpoint | Auth | Wired |
+|---|---|---|
+| GET /compras | token | — |
+| GET /compras/:id | token | FacturaCompraScreen |
+| POST /compras/:id/pagar | token | EntregaCompraScreen |
 
 ### Historial
 
@@ -763,3 +904,4 @@ Llamado desde:
 | POST /admin/subastas | admin |
 | PUT /admin/subastas/:id | admin |
 | POST /admin/subastas/:id/items | admin |
+| POST /admin/subastas/:id/items/:itemId/cerrar | admin |

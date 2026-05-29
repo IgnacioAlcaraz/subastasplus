@@ -132,7 +132,11 @@ export default function AuctionDetailScreen({ navigation, route }) {
         <TouchableOpacity
           style={styles.botonPrimario}
           onPress={() => {
-            if (isGuest) setModalVisible(true);
+            if (isGuest) {
+              setModalVisible(true);
+            } else {
+              navigation.navigate("PreIngreso", { subasta });
+            }
           }}
         >
           <Text style={styles.botonPrimarioTexto}>Entrar a subasta</Text>
