@@ -5,6 +5,7 @@ import OfflineScreen from './common/OfflineScreen';
 
 function estaOffline(state) {
   if (!state) return false;
+  // chequeamos ambas propiedades porque en algunos dispositivos isInternetReachable puede ser null y no false
   return state.isConnected === false || state.isInternetReachable === false;
 }
 
@@ -25,6 +26,7 @@ export default function OfflineGate({ children }) {
   return (
     <View style={styles.root}>
       {children}
+      {/* superponemos la pantalla offline encima del contenido sin desmontarlo */}
       {offline && (
         <View style={styles.overlay}>
           <OfflineScreen onRetry={reintentar} />

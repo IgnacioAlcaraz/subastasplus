@@ -9,6 +9,8 @@ import RegistroCompletoScreen from '../screens/mediosPago/RegistroCompletoScreen
 
 const Stack = createStackNavigator();
 
+// este navigator se usa solo durante el onboarding obligatorio de medios de pago
+// después del onboarding el acceso es desde el perfil (ProfileNavigator)
 export default function MedioPagoNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>

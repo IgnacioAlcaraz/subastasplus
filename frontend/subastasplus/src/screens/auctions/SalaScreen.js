@@ -19,6 +19,7 @@ import { useAuth } from "../../context/AuthContext";
 import { SERVER_URL } from "../../api/client";
 import { realizarPuja, salirSala } from "../../api/subastas";
 
+// la sala de subastas tiene su propia paleta oscura, separada del tema general de la app
 const SALA = {
   bg: "#111111",
   surface: "#1C1C1E",
@@ -37,6 +38,7 @@ function formatMonto(monto, moneda) {
   })}`;
 }
 
+// los incrementos rápidos se calculan como porcentaje del precio base, no de la oferta actual
 function calcularOpciones(mejorOferta, precioBase) {
   return [
     { label: "+1%", monto: Number((mejorOferta + precioBase * 0.01).toFixed(2)) },
@@ -61,6 +63,7 @@ export default function SalaScreen({ navigation, route }) {
   const [montoGanadorAjeno, setMontoGanadorAjeno] = useState(null);
 
   const sinMaximo = salaInicial.piezaActual?.pujaMaxima === null;
+  // necesitamos el ref porque el handler del WebSocket captura el closure inicial y no ve updates del estado
   const uiStateRef = useRef(uiState);
   useEffect(() => {
     uiStateRef.current = uiState;
@@ -68,6 +71,7 @@ export default function SalaScreen({ navigation, route }) {
 
   useEffect(() => {
     if (!token) return;
+    // convertimos el URL de http a ws para la conexión en tiempo real
     const wsUrl =
       SERVER_URL.replace(/^http/, "ws") +
       `/v1/realtime/subastas/${subastaId}?token=${token}`;
@@ -77,6 +81,7 @@ export default function SalaScreen({ navigation, route }) {
       try {
         const msg = JSON.parse(e.data);
         if (msg.event === "puja_nueva") {
+          // actualizamos la sala con la nueva oferta y recalculamos los límites de puja
           setSala((prev) => {
             if (!prev.piezaActual) return prev;
             const nuevaMinima = Number(
@@ -104,6 +109,7 @@ export default function SalaScreen({ navigation, route }) {
           }
         }
         if (msg.event === "pieza_cerrada") {
+          // comparamos con el id del usuario para saber si ganamos o perdimos la pieza
           if (msg.ganadorClienteId && String(msg.ganadorClienteId) === user?.id) {
             setPiezaGanada({ numeroItem: msg.numeroItem, montoGanador: msg.montoGanador });
             setCompraId(msg.compraId);
@@ -131,6 +137,7 @@ export default function SalaScreen({ navigation, route }) {
   }, [subastaId, navigation]);
 
   useEffect(() => {
+    // en Android necesitamos interceptar el botón físico de atrás para llamar a salirSala correctamente
     if (Platform.OS !== "android") return;
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       handleSalir();

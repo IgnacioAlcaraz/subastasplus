@@ -28,6 +28,7 @@ async function compraShape(row) {
   const costoEnvio = ext?.costo_envio ? Number(ext.costo_envio) : null;
   const total = importe + comision + (costoEnvio || 0);
 
+  // mapeamos el estado interno a los valores que espera el frontend
   let estadoApi = "pendiente_pago";
   if (ext?.estado_pago === "pagada") estadoApi = "pagada";
   else if (ext?.estado_pago === "fondos_insuficientes") estadoApi = "fondos_insuficientes";
@@ -45,6 +46,7 @@ async function compraShape(row) {
     metodoEntrega: ext?.metodo_entrega || null,
     direccionEnvio: ext?.direccion_envio || null,
     estado: estadoApi,
+    // el aviso de seguro solo aplica cuando el usuario elige retirar en persona
     avisoSeguro:
       ext?.metodo_entrega === "retiro_personal"
         ? "Al retirar personalmente perdés la cobertura de seguro durante el traslado."

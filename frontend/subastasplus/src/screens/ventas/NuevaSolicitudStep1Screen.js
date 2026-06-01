@@ -38,7 +38,7 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.4,
+        quality: 0.4, // reducimos la calidad para que las fotos en base64 no exploten el payload
         base64: true,
         exif: false,
       });

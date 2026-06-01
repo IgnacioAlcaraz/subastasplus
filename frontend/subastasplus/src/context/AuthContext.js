@@ -21,6 +21,7 @@ export function AuthProvider({ children }) {
       const savedToken = await AsyncStorage.getItem('token');
       const savedUser = await AsyncStorage.getItem('user');
 
+      // si hay JWT guardado, restauramos la sesión directo sin llamar al backend
       if (savedToken) {
         const savedStatus = await AsyncStorage.getItem('auth_status');
         setToken(savedToken);
@@ -29,6 +30,7 @@ export function AuthProvider({ children }) {
         return;
       }
 
+      // sin JWT, vemos si quedó un token de registro en curso
       const savedTokenSeg = await AsyncStorage.getItem('tokenSeguimiento');
       if (savedTokenSeg) {
         try {
@@ -45,7 +47,7 @@ export function AuthProvider({ children }) {
             setStatus('unauthenticated');
           }
         } catch (_) {
-          // Error de red: mantener pending para no perder el token
+          // si falla la red preferimos mantenerlo como pending, no tiene sentido desloguearlo
           setTokenSeguimiento(savedTokenSeg);
           setStatus('pending');
         }
@@ -69,6 +71,7 @@ export function AuthProvider({ children }) {
     setStatus('authenticated');
   }
 
+  // guardamos el status en AsyncStorage por si la app se cierra durante el onboarding
   async function startMedioPagoOnboarding(tokenValue, userData) {
     await AsyncStorage.setItem('token', tokenValue);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
@@ -81,6 +84,7 @@ export function AuthProvider({ children }) {
     setStatus('requires_medio_pago');
   }
 
+  // borramos el flag para que la próxima apertura entre como autenticado normal
   async function completeOnboarding() {
     await AsyncStorage.removeItem('auth_status');
     setStatus('authenticated');
@@ -105,6 +109,7 @@ export function AuthProvider({ children }) {
     setStatus('guest');
   }
 
+  // guardamos la ruta destino antes de volver a unauthenticated, así el navigator sabe a dónde ir
   function exitGuest(route = 'Login') {
     setPendingAuthRoute(route);
     setStatus('unauthenticated');
@@ -125,6 +130,7 @@ export function AuthProvider({ children }) {
       continueAsGuest,
       exitGuest,
       isAuthenticated: status === 'authenticated',
+      // tanto guest como pending se bloquean igual; la diferencia está en el texto del modal
       isGuest: status === 'pending' || status === 'guest',
     }}>
       {children}

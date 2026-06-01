@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, typography } from '../../constants';
 
+// dos variantes del modal: guest = invitado anónimo, pending = registro enviado esperando aprobación
 const CONTENT = {
   guest: {
     titulo: 'Acción no disponible',
@@ -14,6 +15,7 @@ const CONTENT = {
 };
 
 export default function GuestModal({ visible, onClose, variant = 'pending', onLogin, onRegister }) {
+  // si llega una variante desconocida caemos a pending como default más conservador
   const { titulo, descripcion } = CONTENT[variant] ?? CONTENT.pending;
 
   return (

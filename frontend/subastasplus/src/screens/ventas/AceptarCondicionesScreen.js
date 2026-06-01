@@ -20,6 +20,7 @@ function fmt(n) {
   return n?.toLocaleString('es-AR', { minimumFractionDigits: 0 }) ?? '—';
 }
 
+// validamos localmente antes de mandar al backend para dar feedback inmediato al usuario
 function validarNacional({ cbu, banco, titular }) {
   const errs = {};
   if (cbu.replace(/\D/g, '').length !== 22) errs.cbu = 'El CBU debe tener 22 dígitos';
@@ -28,6 +29,7 @@ function validarNacional({ cbu, banco, titular }) {
   return errs;
 }
 
+// misma lógica para cuenta exterior; el SWIFT puede tener 8 u 11 caracteres según el banco
 function validarExterior({ swift, iban, banco, pais, moneda, titular }) {
   const errs = {};
   const swiftClean = swift.replace(/\s/g, '');

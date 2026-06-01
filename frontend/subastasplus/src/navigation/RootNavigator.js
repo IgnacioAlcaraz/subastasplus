@@ -18,6 +18,7 @@ export default function RootNavigator() {
     );
   }
 
+  // authenticated, pending y guest comparten el AppNavigator; la diferencia es el modal que aparece al tocar tabs bloqueados
   if (['authenticated', 'pending', 'guest'].includes(status)) return <AppNavigator />;
   if (status === 'requires_clave') return <CreatePasswordScreen />;
   if (status === 'requires_medio_pago') return <MedioPagoNavigator />;

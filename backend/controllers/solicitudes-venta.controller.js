@@ -48,6 +48,7 @@ async function buildSubastaAsignada(subastaId) {
   });
 }
 
+// la póliza tiene datos base en seguros y datos de contacto en la extensión; los unimos acá
 async function buildPoliza(nroPoliza) {
   if (!nroPoliza) return null;
   const seguro = await Seguros.findById(nroPoliza);

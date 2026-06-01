@@ -18,6 +18,7 @@ export default function PreIngresoScreen({ navigation, route }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
 
+  // el backend nos dice si puede entrar y por qué no; acá descomponemos la razón para mostrar cada check
   const categoriaOK =
     subasta.puedeEntrar || subasta.razonNoEntrar !== "Categoría insuficiente";
   const medioPagoOK =

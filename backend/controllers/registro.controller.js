@@ -15,6 +15,7 @@ function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
 
+// convierte base64 a bytea (formato de PostgreSQL para binarios)
 function base64ToBytea(b64) {
   if (!b64) return null;
   const stripped = String(b64).replace(/^data:[^;]+;base64,/, "");
@@ -76,6 +77,7 @@ exports.etapa1 = asyncHandler(async (req, res) => {
     );
   }
 
+  // el documento real no lo tenemos todavía; el admin lo valida cuando revisa el DNI
   const documento = `PENDING-${crypto.randomBytes(6).toString("hex").toUpperCase()}`;
 
   const persona = await Personas.create({
@@ -99,6 +101,7 @@ exports.etapa1 = asyncHandler(async (req, res) => {
     foto_dorso: base64ToBytea(dniDorso),
   });
 
+  // guardamos solo el hash en la base de datos; el token plano solo va en la respuesta
   const tokenPlano = tokens.randomToken("tok");
   const tokenHash = tokens.sha256(tokenPlano);
 
@@ -129,7 +132,7 @@ exports.etapa2 = asyncHandler(async (req, res) => {
   let acceso = await ClientesAcceso.findOne({ token_seguimiento_hash: tokenHash });
 
   if (!acceso) {
-    // El hash puede haberse borrado si etapa2 ya corrió. Intentar por email para dar mejor error.
+    // el hash se borra cuando se completa el registro; intentamos por email para dar un error más claro
     const accesoPorEmail = await ClientesAcceso.findOne({ email: email.trim() });
     if (accesoPorEmail?.password_hash) {
       throw new HttpError(
@@ -183,6 +186,7 @@ exports.etapa2 = asyncHandler(async (req, res) => {
   }
 
   const hash = await passwords.hash(clave);
+  // borramos el token de seguimiento una vez que el registro se completó, ya no sirve
   await ClientesAcceso.update(acceso.identificador, {
     password_hash: hash,
     token_seguimiento_hash: null,

@@ -14,6 +14,7 @@ export default function AppNavigator() {
   const { status, isGuest, exitGuest } = useAuth();
   const [modalVisible, setModalVisible] = useState(false);
 
+  // intercepta el tap del tab y muestra el modal en vez de navegar si es invitado
   function guestListener() {
     return {
       tabPress: (e) => {
@@ -42,6 +43,7 @@ export default function AppNavigator() {
           options={{ title: 'Subastas' }}
           listeners={({ navigation }) => ({
             tabPress: (e) => {
+              // siempre volvemos al listado al tocar el tab, aunque ya estés adentro de una subasta
               e.preventDefault();
               navigation.navigate('Auctions', { screen: 'AuctionsList' });
             },

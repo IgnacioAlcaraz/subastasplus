@@ -14,6 +14,7 @@ function asyncHandler(fn) {
 }
 
 async function buildLoginResponse(cliente, persona, acceso) {
+  // traemos medios de pago y multas en paralelo para no hacer las dos consultas en serie
   const [cantidadMediosPago, tieneMulta] = await Promise.all([
     MediosPago.count({ cliente: cliente.identificador }),
     tieneMultaActiva(cliente.identificador),
@@ -166,6 +167,7 @@ exports.recuperarClave = asyncHandler(async (req, res) => {
   }
 
   const codigo = tokens.randomCode();
+  // el código de recuperación vence en 15 minutos
   const expiracion = new Date(Date.now() + 15 * 60 * 1000).toISOString();
   await ClientesAcceso.update(acceso.identificador, {
     codigo_recuperacion: codigo,
@@ -180,6 +182,7 @@ exports.recuperarClave = asyncHandler(async (req, res) => {
 // POST /auth/verificar-codigo
 exports.verificarCodigo = asyncHandler(async (req, res) => {
   const { email, codigo } = req.body || {};
+  // no distinguimos entre "código incorrecto" y "código expirado" para no dar pistas
   const acceso = email ? await ClientesAcceso.findOne({ email }) : null;
   const invalid = () => {
     throw new HttpError(

@@ -8,6 +8,7 @@ import Input from '../../components/common/Input';
 import { crearSolicitud } from '../../api/solicitudesVenta';
 
 export default function NuevaSolicitudStep2Screen({ navigation, route }) {
+  // recibimos todos los datos del step 1 como params de navegación
   const step1 = route.params;
 
   const [historia, setHistoria] = useState('');
@@ -30,6 +31,7 @@ export default function NuevaSolicitudStep2Screen({ navigation, route }) {
         curiosidades: curiosidades.trim() || null,
         declaracionPropiedad: true,
       });
+      // replace en vez de navigate para que no puedan volver al step2 desde la confirmación
       navigation.replace('ConfirmacionSolicitud');
     } catch (e) {
       Alert.alert('Error', e.message || 'No se pudo enviar la solicitud.');

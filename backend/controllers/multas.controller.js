@@ -24,6 +24,7 @@ function multaShape(m) {
   };
 }
 
+// las multas no tienen FK directa al cliente; las traemos indirectamente a través de sus registros de subasta
 async function multasDelUsuario(clienteId) {
   const { data: registros } = await supabase
     .from("registro_de_subasta")
@@ -97,6 +98,7 @@ exports.pagar = asyncHandler(async (req, res) => {
       razon: "medio_no_verificado",
     });
   }
+  // solo para cheques verificamos que el monto cubra la multa; otros medios se validan en el banco
   if (medio.tipo === "cheque_certificado" && Number(medio.monto_cheque || 0) < Number(multa.monto_multa || 0)) {
     throw new HttpError(402, "MULTA_PAGO_FALLIDO", "No se pudo procesar el pago de la multa. Probá con otro medio de pago.", {
       razon: "fondos_insuficientes",
