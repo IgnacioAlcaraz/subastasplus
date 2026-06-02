@@ -33,11 +33,11 @@ async function participacionShape(asistente) {
 
   const cantidadPujas = pujos?.length || 0;
   let montoMaximo = 0;
-  let gano = false;
+  let piezasGanadas = 0;
   for (const p of pujos || []) {
     const imp = Number(p.importe);
     if (imp > montoMaximo) montoMaximo = imp;
-    if (p.ganador === "si") gano = true;
+    if (p.ganador === "si") piezasGanadas++;
   }
 
   return {
@@ -45,8 +45,10 @@ async function participacionShape(asistente) {
     subastaId: subasta ? String(subasta.identificador) : null,
     tituloSubasta: subasta ? tituloSubasta(subasta, ext) : null,
     fecha: subasta ? fechaTimestamp(subasta) : null,
+    ubicacion: subasta?.ubicacion || null,
+    moneda: ext?.moneda || "ARS",
     cantidadPujas,
-    gano,
+    piezasGanadas,
     montoMaximoPujado: montoMaximo,
   };
 }
@@ -104,6 +106,8 @@ exports.pujasDeParticipacion = asyncHandler(async (req, res) => {
     const producto = item ? await Productos.findById(item.producto) : null;
     result.push({
       numero: p.identificador,
+      itemId: p.item,
+      piezaNumero: item ? item.identificador : null,
       monto: Number(p.importe),
       timestamp: ext?.timestamp || null,
       piezaDescripcion: producto?.descripcion_catalogo || producto?.descripcion_completa || "",
@@ -220,11 +224,13 @@ exports.metricas = asyncHandler(async (req, res) => {
   }
 
   const totalSubastasAsistidas = new Set(subastaIds).size;
-  const porcentajeVictorias = pujos.length ? Math.round((totalGanadas / pujos.length) * 1000) / 10 : 0;
-  const montoPromedioOfertado = pujos.length ? Math.round(totalOfertado / pujos.length) : 0;
+  const totalPujas = pujos.length;
+  const porcentajeVictorias = totalPujas ? Math.round((totalGanadas / totalPujas) * 1000) / 10 : 0;
+  const montoPromedioOfertado = totalPujas ? Math.round(totalOfertado / totalPujas) : 0;
 
   res.json({
     totalSubastasAsistidas,
+    totalPujas,
     totalGanadas,
     porcentajeVictorias,
     totalOfertado,

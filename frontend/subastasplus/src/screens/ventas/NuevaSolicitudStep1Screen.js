@@ -60,6 +60,10 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
       Alert.alert('Campo requerido', 'Ingresá la descripción del bien.');
       return;
     }
+    if (fotos.length < 6) {
+      Alert.alert('Fotos insuficientes', `Debés subir al menos 6 fotos del bien (tenés ${fotos.length}).`);
+      return;
+    }
     navigation.navigate('NuevaSolicitudStep2', {
       tipo,
       nombreBien: nombreBien.trim(),
@@ -107,7 +111,9 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
 
       <View style={styles.fotosHeader}>
         <Text style={styles.sectionLabel}>Fotos del bien</Text>
-        <Text style={styles.fotasCounter}>{fotos.length} foto{fotos.length !== 1 ? 's' : ''}</Text>
+        <Text style={[styles.fotasCounter, fotos.length < 6 && styles.fotasCounterWarning]}>
+          {fotos.length}/6 fotos mínimo
+        </Text>
       </View>
 
       <View style={styles.fotosGrid}>
@@ -159,6 +165,7 @@ const styles = StyleSheet.create({
   chipTextActive: { color: colors.primary, fontWeight: '600' },
   fotosHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 },
   fotasCounter: { ...typography.bodySmall, color: colors.textSecondary },
+  fotasCounterWarning: { color: colors.error },
   fotosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
   fotoSlot: { width: SLOT_SIZE, height: SLOT_SIZE, borderRadius: 10, overflow: 'hidden' },
   fotoSlotEmpty: {

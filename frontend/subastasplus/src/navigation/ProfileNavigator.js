@@ -12,6 +12,10 @@ import MultasScreen from '../screens/profile/MultasScreen';
 import MultaPagadaScreen from '../screens/profile/MultaPagadaScreen';
 import HistorialComprasScreen from '../screens/profile/HistorialComprasScreen';
 import CompraDetalleScreen from '../screens/profile/CompraDetalleScreen';
+import MetricasScreen from '../screens/profile/MetricasScreen';
+import HistorialParticipacionesScreen from '../screens/profile/HistorialParticipacionesScreen';
+import DetalleParticipacionScreen from '../screens/profile/DetalleParticipacionScreen';
+import HistorialPujasScreen from '../screens/profile/HistorialPujasScreen';
 import SelMedioPagoCompraScreen from '../screens/compras/SelMedioPagoCompraScreen';
 import FacturaCompraScreen from '../screens/compras/FacturaCompraScreen';
 import EntregaCompraScreen from '../screens/compras/EntregaCompraScreen';
@@ -38,6 +42,10 @@ export default function ProfileNavigator() {
       <Stack.Screen name="FacturaCompra" component={FacturaCompraScreen} />
       <Stack.Screen name="EntregaCompra" component={EntregaCompraScreen} />
       <Stack.Screen name="ResultadoCompra" component={ResultadoCompraScreen} />
+      <Stack.Screen name="Metricas" component={MetricasScreen} />
+      <Stack.Screen name="HistorialParticipaciones" component={HistorialParticipacionesScreen} />
+      <Stack.Screen name="DetalleParticipacion" component={DetalleParticipacionScreen} />
+      <Stack.Screen name="HistorialPujas" component={HistorialPujasScreen} />
     </Stack.Navigator>
   );
 }
