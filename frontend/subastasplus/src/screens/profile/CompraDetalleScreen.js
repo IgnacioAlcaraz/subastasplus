@@ -16,7 +16,9 @@ function formatMonto(monto, moneda) {
 
 function estadoEntrega(compra) {
   if (compra.estado === 'pagada') {
-    return compra.metodoEntrega === 'retiro_personal' ? 'Entregado' : 'Enviado';
+    if (compra.metodoEntrega === 'retiro_personal') return 'Entregado';
+    if (compra.metodoEntrega === 'envio') return 'Enviado';
+    return 'Entregado';
   }
   if (compra.estado === 'fondos_insuficientes') return 'Fondos insuficientes';
   return 'Pendiente de pago';
@@ -62,9 +64,10 @@ export default function CompraDetalleScreen({ route, navigation }) {
   const pct = compra.montoPujado > 0
     ? Math.round((compra.comisiones / compra.montoPujado) * 100)
     : 0;
+  const desc = compra.descripcionPieza || '';
   const titulo = compra.numeroItem
-    ? `#${String(compra.numeroItem).padStart(3, '0')} ${compra.descripcionPieza}`
-    : compra.descripcionPieza;
+    ? `#${String(compra.numeroItem).padStart(3, '0')} ${desc}`
+    : desc;
   const imgUri = compra.numeroItem
     ? `${SERVER_URL}/v1/piezas/${compra.numeroItem}/fotos/0`
     : null;
