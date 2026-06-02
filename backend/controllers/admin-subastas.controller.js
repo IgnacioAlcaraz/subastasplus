@@ -258,8 +258,11 @@ exports.cerrarItem = asyncHandler(async (req, res) => {
   const montoGanador = Number(pujoGanador.importe);
   const comision = Math.round(montoGanador * 0.1);
 
+  const producto = await Productos.findById(item.producto);
+
   const registro = await RegistroDeSubasta.create({
     cliente: clienteGanadorId,
+    duenio: producto?.duenio ?? null,
     subasta: subastaId,
     producto: item.producto,
     importe: montoGanador,
