@@ -24,12 +24,10 @@ async function compraShape(row) {
     Subastas.findById(row.subasta),
     ItemsCatalogo.findOne({ producto: row.producto }),
   ]);
-  const subExt = subasta
-    ? await SubastasExtension.findOne({ subasta: subasta.identificador })
-    : null;
-  const medioPagoRow = ext?.medio_pago
-    ? await MediosPago.findById(Number(ext.medio_pago))
-    : null;
+  const [subExt, medioPagoRow] = await Promise.all([
+    subasta ? SubastasExtension.findOne({ subasta: subasta.identificador }) : Promise.resolve(null),
+    ext?.medio_pago ? MediosPago.findById(Number(ext.medio_pago)) : Promise.resolve(null),
+  ]);
   const importe = Number(row.importe || 0);
   const comision = Number(row.comision || 0);
   const costoEnvio = ext?.costo_envio ? Number(ext.costo_envio) : null;
@@ -90,8 +88,7 @@ exports.listar = asyncHandler(async (req, res) => {
     .order("identificador", { ascending: false });
   if (error) throw error;
 
-  const result = [];
-  for (const row of data || []) result.push(await compraShape(row));
+  const result = await Promise.all((data || []).map(row => compraShape(row)));
   res.json({ data: result, meta: paginate({ page, limit, total: count || 0 }) });
 });
 
