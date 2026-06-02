@@ -15,10 +15,13 @@ function badgeInfo(item) {
   if (item.estado === 'pendiente_pago') {
     return { label: 'Pendiente de pago', color: colors.warning };
   }
-  if (item.metodoEntrega === 'retiro_personal') {
+  if (item.estado === 'pagada' && item.metodoEntrega === 'retiro_personal') {
     return { label: 'Entregado', color: colors.primary };
   }
-  return { label: 'Enviado', color: colors.textSecondary };
+  if (item.estado === 'pagada') {
+    return { label: 'Enviado', color: colors.textSecondary };
+  }
+  return { label: 'Desconocido', color: colors.textDisabled };
 }
 
 function formatFecha(dateStr) {
@@ -108,7 +111,9 @@ export default function HistorialComprasScreen({ navigation }) {
       });
       return;
     }
-    navigation.navigate('CompraDetalle', { compraId: item.id });
+    if (item.estado === 'pagada') {
+      navigation.navigate('CompraDetalle', { compraId: item.id });
+    }
   }
 
   if (loading) {
