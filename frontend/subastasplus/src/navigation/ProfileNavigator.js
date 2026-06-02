@@ -10,6 +10,12 @@ import HistorialVentasScreen from '../screens/profile/HistorialVentasScreen';
 import VentaDetalleScreen from '../screens/ventas/VentaDetalleScreen';
 import MultasScreen from '../screens/profile/MultasScreen';
 import MultaPagadaScreen from '../screens/profile/MultaPagadaScreen';
+import HistorialComprasScreen from '../screens/profile/HistorialComprasScreen';
+import CompraDetalleScreen from '../screens/profile/CompraDetalleScreen';
+import SelMedioPagoCompraScreen from '../screens/compras/SelMedioPagoCompraScreen';
+import FacturaCompraScreen from '../screens/compras/FacturaCompraScreen';
+import EntregaCompraScreen from '../screens/compras/EntregaCompraScreen';
+import ResultadoCompraScreen from '../screens/compras/ResultadoCompraScreen';
 
 const Stack = createStackNavigator();
 
@@ -26,6 +32,12 @@ export default function ProfileNavigator() {
       <Stack.Screen name="VentaDetalle" component={VentaDetalleScreen} />
       <Stack.Screen name="Multas" component={MultasScreen} />
       <Stack.Screen name="MultaPagada" component={MultaPagadaScreen} />
+      <Stack.Screen name="HistorialCompras" component={HistorialComprasScreen} />
+      <Stack.Screen name="CompraDetalle" component={CompraDetalleScreen} />
+      <Stack.Screen name="SelMedioPago" component={SelMedioPagoCompraScreen} />
+      <Stack.Screen name="FacturaCompra" component={FacturaCompraScreen} />
+      <Stack.Screen name="EntregaCompra" component={EntregaCompraScreen} />
+      <Stack.Screen name="ResultadoCompra" component={ResultadoCompraScreen} />
     </Stack.Navigator>
   );
 }

@@ -16,7 +16,7 @@ export default function MultaPagadaScreen({ navigation }) {
       <View style={styles.boton}>
         <Button
           title="Historial de Compras"
-          onPress={() => navigation.navigate('ProfileHome')}
+          onPress={() => navigation.navigate('HistorialCompras')}
         />
       </View>
     </View>
