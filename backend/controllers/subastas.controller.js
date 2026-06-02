@@ -21,7 +21,7 @@ const {
   estadoApiToDb,
   paginate,
 } = require("../lib/subasta-shape");
-const { cantidadPiezasDeSubasta } = require("../lib/subastas-helper");
+const { cantidadPiezasDeSubasta, piezaEnSubasta } = require("../lib/subastas-helper");
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
@@ -226,25 +226,6 @@ const realtime = require("../lib/realtime");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
 const { multaPendienteData } = require("../lib/multas-helper");
 
-async function piezaEnSubasta(subastaId) {
-  const { data: cats } = await supabase
-    .from("catalogos")
-    .select("identificador")
-    .eq("subasta", subastaId);
-  const catIds = (cats || []).map((c) => c.identificador);
-  if (!catIds.length) return null;
-  const { data: items } = await supabase
-    .from("items_catalogo")
-    .select("*")
-    .in("catalogo", catIds);
-  for (const item of items || []) {
-    const estado = await ItemsCatalogoEstado.findOne({ item: item.identificador });
-    if (estado?.estado === "en_subasta") {
-      return { item, estado };
-    }
-  }
-  return null;
-}
 
 async function ultimasPujasDeItem(itemId, usuarioClienteId, limit = 10) {
   const { data: pujos } = await supabase
@@ -417,6 +398,11 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
   const asistente = await Asistentes.findOne({ cliente: cliente.identificador, subasta: subastaId });
   if (!asistente) {
     throw new HttpError(403, "SALA_NO_INSCRIPTO", "No estás inscripto en esta sala. Ingresá primero.");
+  }
+
+  const extAsistente = await AsistentesExtension.findOne({ asistente: asistente.identificador });
+  if (!extAsistente || extAsistente.estado_conexion !== "conectado") {
+    throw new HttpError(403, "SALA_DESCONECTADO", "Saliste de la sala. Ingresá nuevamente para poder ofertar.");
   }
 
   const piezaCur = await piezaEnSubasta(subastaId);

@@ -16,8 +16,6 @@ const TIPOS = [
   { value: 'otro', label: 'Otro' },
 ];
 
-const MAX_FOTOS = 6;
-
 export default function NuevaSolicitudStep1Screen({ navigation }) {
   const [tipo, setTipo] = useState('arte');
   const [nombreBien, setNombreBien] = useState('');
@@ -27,7 +25,6 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
   const [pickingFoto, setPickingFoto] = useState(false);
 
   async function agregarFoto() {
-    if (fotos.length >= MAX_FOTOS) return;
     setPickingFoto(true);
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -63,10 +60,6 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
       Alert.alert('Campo requerido', 'Ingresá la descripción del bien.');
       return;
     }
-    if (fotos.length < MAX_FOTOS) {
-      Alert.alert('Fotos insuficientes', `Debés subir al menos ${MAX_FOTOS} fotos.`);
-      return;
-    }
     navigation.navigate('NuevaSolicitudStep2', {
       tipo,
       nombreBien: nombreBien.trim(),
@@ -75,8 +68,6 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
       imagenes: fotos,
     });
   }
-
-  const fotasFaltantes = MAX_FOTOS - fotos.length;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -116,34 +107,25 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
 
       <View style={styles.fotosHeader}>
         <Text style={styles.sectionLabel}>Fotos del bien</Text>
-        <Text style={[styles.fotasCounter, fotasFaltantes > 0 && styles.fotasCounterWarn]}>
-          {fotos.length}/{MAX_FOTOS} min
-        </Text>
+        <Text style={styles.fotasCounter}>{fotos.length} foto{fotos.length !== 1 ? 's' : ''}</Text>
       </View>
 
       <View style={styles.fotosGrid}>
-        {Array.from({ length: MAX_FOTOS }).map((_, i) => {
-          const foto = fotos[i];
-          if (foto) {
-            return (
-              <TouchableOpacity key={i} style={styles.fotoSlot} onPress={() => eliminarFoto(i)} activeOpacity={0.8}>
-                <Image source={{ uri: `data:image/jpeg;base64,${foto}` }} style={styles.fotoImage} />
-                <View style={styles.fotoRemove}>
-                  <Text style={styles.fotoRemoveText}>×</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          }
-          return (
-            <TouchableOpacity key={i} style={[styles.fotoSlot, styles.fotoSlotEmpty]} onPress={agregarFoto} activeOpacity={0.7} disabled={pickingFoto}>
-              {pickingFoto && i === fotos.length ? (
-                <ActivityIndicator size="small" color={colors.textSecondary} />
-              ) : (
-                <Text style={styles.fotoPlus}>+</Text>
-              )}
-            </TouchableOpacity>
-          );
-        })}
+        {fotos.map((foto, i) => (
+          <TouchableOpacity key={i} style={styles.fotoSlot} onPress={() => eliminarFoto(i)} activeOpacity={0.8}>
+            <Image source={{ uri: `data:image/jpeg;base64,${foto}` }} style={styles.fotoImage} />
+            <View style={styles.fotoRemove}>
+              <Text style={styles.fotoRemoveText}>×</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity style={[styles.fotoSlot, styles.fotoSlotEmpty]} onPress={agregarFoto} activeOpacity={0.7} disabled={pickingFoto}>
+          {pickingFoto ? (
+            <ActivityIndicator size="small" color={colors.textSecondary} />
+          ) : (
+            <Text style={styles.fotoPlus}>+</Text>
+          )}
+        </TouchableOpacity>
       </View>
 
       <TouchableOpacity style={styles.btn} onPress={siguiente} activeOpacity={0.85}>
@@ -177,7 +159,6 @@ const styles = StyleSheet.create({
   chipTextActive: { color: colors.primary, fontWeight: '600' },
   fotosHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8 },
   fotasCounter: { ...typography.bodySmall, color: colors.textSecondary },
-  fotasCounterWarn: { color: colors.error, fontWeight: '600' },
   fotosGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 },
   fotoSlot: { width: SLOT_SIZE, height: SLOT_SIZE, borderRadius: 10, overflow: 'hidden' },
   fotoSlotEmpty: {

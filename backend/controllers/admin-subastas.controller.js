@@ -17,7 +17,7 @@ const {
   fechaTimestamp,
   estadoApi,
 } = require("../lib/subasta-shape");
-const { cantidadPiezasDeSubasta } = require("../lib/subastas-helper");
+const { cantidadPiezasDeSubasta, piezaEnSubasta } = require("../lib/subastas-helper");
 const realtime = require("../lib/realtime");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
 
@@ -207,6 +207,47 @@ exports.agregarItem = asyncHandler(async (req, res) => {
   const prodExt = await ProductosExtension.findOne({ producto: producto.identificador });
   const estadoItem = await ItemsCatalogoEstado.findById(item.identificador);
   res.status(201).json(piezaResumen({ item, producto, prodExt, estadoItem, precioVisible: true }));
+});
+
+// POST /admin/subastas/:id/items/:itemId/activar
+exports.activarItem = asyncHandler(async (req, res) => {
+  const subastaId = Number(req.params.id);
+  const itemId = Number(req.params.itemId);
+
+  const subasta = await Subastas.findById(subastaId);
+  if (!subasta || subasta.estado !== "abierta") {
+    throw new HttpError(404, "SUBASTA_NO_DISPONIBLE", "La subasta no existe o no está en curso.");
+  }
+
+  const item = await ItemsCatalogo.findById(itemId);
+  if (!item) {
+    throw new HttpError(404, "ITEM_NO_ENCONTRADO", "El ítem no existe en el catálogo.");
+  }
+
+  const estadoItem = await ItemsCatalogoEstado.findOne({ item: itemId });
+  if (!estadoItem || estadoItem.estado !== "pendiente") {
+    throw new HttpError(409, "ITEM_NO_PENDIENTE", "El ítem no está pendiente. Solo se pueden activar ítems pendientes.");
+  }
+
+  const piezaActiva = await piezaEnSubasta(subastaId);
+  if (piezaActiva) {
+    throw new HttpError(409, "SUBASTA_PIEZA_YA_ACTIVA", "Ya hay una pieza activa en esta subasta. Cerrala antes de activar la siguiente.");
+  }
+
+  await ItemsCatalogoEstado.update(itemId, { estado: "en_subasta", mejor_oferta: null });
+
+  const producto = await Productos.findById(item.producto);
+  const precioBase = Number(item.precio_base);
+
+  realtime.broadcast(subastaId, {
+    event: "pieza_nueva",
+    numeroItem: itemId,
+    descripcion: producto?.descripcion_catalogo || producto?.descripcion_completa || "",
+    precioBase,
+    mejorOferta: precioBase,
+  });
+
+  res.json({ activado: true, itemId });
 });
 
 // POST /admin/subastas/:id/items/:itemId/cerrar

@@ -4,6 +4,8 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
+  KeyboardAvoidingView,
   TextInput,
   TouchableOpacity,
   Modal,
@@ -108,6 +110,29 @@ export default function SalaScreen({ navigation, route }) {
             setUiState("superada");
           }
         }
+        if (msg.event === "pieza_nueva") {
+          const precioBase = msg.precioBase;
+          const mejorOferta = msg.mejorOferta;
+          const nuevaMinima = Number((mejorOferta + precioBase * 0.01).toFixed(2));
+          const nuevaMaxima = sinMaximo ? null : Number((mejorOferta + precioBase * 0.2).toFixed(2));
+          setSala((prev) => ({
+            ...prev,
+            piezaActual: {
+              id: String(msg.numeroItem),
+              numeroItem: msg.numeroItem,
+              descripcion: msg.descripcion,
+              precioBase,
+              mejorOferta,
+              pujaMinima: nuevaMinima,
+              pujaMaxima: nuevaMaxima,
+              ultimasPujas: [],
+            },
+          }));
+          setMonto(String(nuevaMinima));
+          if (!["ganador", "perdedor"].includes(uiStateRef.current)) {
+            setUiState("sala");
+          }
+        }
         if (msg.event === "pieza_cerrada") {
           // comparamos con el id del usuario para saber si ganamos o perdimos la pieza
           if (msg.ganadorClienteId && String(msg.ganadorClienteId) === user?.id) {
@@ -194,91 +219,98 @@ export default function SalaScreen({ navigation, route }) {
           <Text style={styles.esperandoTexto}>Esperando inicio de subasta...</Text>
         </View>
       ) : (
-        <>
-          <View style={styles.piezaHeader}>
-            <Text style={styles.piezaNumero}>
-              Pieza actual #{String(pieza.numeroItem).padStart(3, "0")}
-            </Text>
-            <Text style={styles.piezaDesc}>{pieza.descripcion}</Text>
-            <View style={styles.preciosRow}>
-              <Text style={styles.precioLabel}>
-                Base:{" "}
-                <Text style={styles.precioValor}>
-                  {formatMonto(pieza.precioBase, moneda)}
-                </Text>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+          <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+            <View style={styles.piezaHeader}>
+              <Text style={styles.piezaNumero}>
+                Pieza actual #{String(pieza.numeroItem).padStart(3, "0")}
               </Text>
-              <Text style={styles.precioLabel}>
-                Mejor:{" "}
-                <Text style={[styles.precioValor, { color: SALA.verde }]}>
-                  {formatMonto(pieza.mejorOferta, moneda)}
+              <Text style={styles.piezaDesc}>{pieza.descripcion}</Text>
+              <View style={styles.preciosRow}>
+                <Text style={styles.precioLabel}>
+                  Base:{" "}
+                  <Text style={styles.precioValor}>
+                    {formatMonto(pieza.precioBase, moneda)}
+                  </Text>
                 </Text>
-              </Text>
+                <Text style={styles.precioLabel}>
+                  Mejor:{" "}
+                  <Text style={[styles.precioValor, { color: SALA.verde }]}>
+                    {formatMonto(pieza.mejorOferta, moneda)}
+                  </Text>
+                </Text>
+              </View>
             </View>
-          </View>
 
-          <View style={styles.pujasSeccion}>
-            <Text style={styles.pujasLabel}>Últimas pujas</Text>
-            <FlatList
-              data={pieza.ultimasPujas}
-              keyExtractor={(item) => item.id}
-              renderItem={renderPuja}
-              scrollEnabled={false}
-            />
-          </View>
-
-          <TouchableOpacity style={styles.streamingBoton}>
-            <Text style={styles.streamingTexto}>Streaming</Text>
-          </TouchableOpacity>
-
-          <View style={styles.imagenPlaceholder}>
-            <Text style={styles.imagenTexto}>imagen</Text>
-          </View>
-
-          <View style={styles.limitesRow}>
-            <Text style={styles.limiteTexto}>
-              Min: {formatMonto(pieza.pujaMinima, moneda)}
-            </Text>
-            {pieza.pujaMaxima !== null && (
-              <Text style={styles.limiteTexto}>
-                Max: {formatMonto(pieza.pujaMaxima, moneda)}
-              </Text>
-            )}
-          </View>
-
-          <View style={styles.opcionesRow}>
-            {opciones.map((op) => (
-              <TouchableOpacity
-                key={op.label}
-                style={styles.opcionBoton}
-                onPress={() => setMonto(String(op.monto))}
-              >
-                <Text style={styles.opcionLabel}>{op.label}</Text>
-                <Text style={styles.opcionMonto}>
-                  {formatMonto(op.monto, moneda)}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.pujarRow}>
-            <View style={styles.inputWrapper}>
-              <Text style={styles.inputMoneda}>{moneda}</Text>
-              <TextInput
-                style={styles.input}
-                value={monto}
-                onChangeText={setMonto}
-                keyboardType="numeric"
-                placeholderTextColor={SALA.textoSec}
+            <View style={styles.pujasSeccion}>
+              <Text style={styles.pujasLabel}>Últimas pujas</Text>
+              <FlatList
+                data={pieza.ultimasPujas}
+                keyExtractor={(item) => item.id}
+                renderItem={renderPuja}
+                scrollEnabled={false}
               />
             </View>
-            <TouchableOpacity
-              style={styles.pujarBoton}
-              onPress={() => setUiState("confirmar")}
-            >
-              <Text style={styles.pujarTexto}>PUJAR</Text>
+
+            <TouchableOpacity style={styles.streamingBoton}>
+              <Text style={styles.streamingTexto}>Streaming</Text>
             </TouchableOpacity>
+
+            <View style={styles.imagenPlaceholder}>
+              <Text style={styles.imagenTexto}>imagen</Text>
+            </View>
+          </ScrollView>
+
+          <View style={styles.bottomFija}>
+            <View style={styles.limitesRow}>
+              <Text style={styles.limiteTexto}>
+                Min: {formatMonto(pieza.pujaMinima, moneda)}
+              </Text>
+              {pieza.pujaMaxima !== null && (
+                <Text style={styles.limiteTexto}>
+                  Max: {formatMonto(pieza.pujaMaxima, moneda)}
+                </Text>
+              )}
+            </View>
+
+            <View style={styles.opcionesRow}>
+              {opciones.map((op) => (
+                <TouchableOpacity
+                  key={op.label}
+                  style={styles.opcionBoton}
+                  onPress={() => setMonto(String(op.monto))}
+                >
+                  <Text style={styles.opcionLabel}>{op.label}</Text>
+                  <Text style={styles.opcionMonto}>
+                    {formatMonto(op.monto, moneda)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.pujarRow}>
+              <View style={styles.inputWrapper}>
+                <Text style={styles.inputMoneda}>{moneda}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={monto}
+                  onChangeText={setMonto}
+                  keyboardType="numeric"
+                  placeholderTextColor={SALA.textoSec}
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.pujarBoton}
+                onPress={() => setUiState("confirmar")}
+              >
+                <Text style={styles.pujarTexto}>PUJAR</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </>
+        </KeyboardAvoidingView>
       )}
 
       <Modal visible={uiState === "confirmar"} transparent animationType="fade">
@@ -457,6 +489,12 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   streamingTexto: { ...typography.bodySmall, color: SALA.texto },
+  scrollArea: { flex: 1 },
+  bottomFija: {
+    borderTopWidth: 1,
+    borderTopColor: SALA.borde,
+    paddingTop: 10,
+  },
   imagenPlaceholder: {
     marginHorizontal: 20,
     height: 140,
@@ -464,7 +502,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   imagenTexto: { ...typography.body, color: SALA.textoSec },
   limitesRow: {

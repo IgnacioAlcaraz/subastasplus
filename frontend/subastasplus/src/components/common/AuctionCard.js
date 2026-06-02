@@ -2,10 +2,12 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, typography } from '../../constants';
 
-function formatFecha(isoString) {
+function formatFechaHora(isoString) {
   if (!isoString) return '-';
   const date = new Date(isoString);
-  return date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+  const fechaParte = date.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+  const horaParte = date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) + ' hs';
+  return `${fechaParte} · ${horaParte}`;
 }
 
 export default function AuctionCard({ subasta, onPress, variant = 'list' }) {
@@ -21,7 +23,7 @@ export default function AuctionCard({ subasta, onPress, variant = 'list' }) {
           <Text style={styles.statusBadgeTexto}>Programada</Text>
         </View>
         <Text style={styles.compactTitulo} numberOfLines={2}>{titulo}</Text>
-        <Text style={styles.compactFecha}>{formatFecha(fecha)}</Text>
+        <Text style={styles.compactFecha}>{formatFechaHora(fecha)}</Text>
       </TouchableOpacity>
     );
   }
@@ -51,9 +53,12 @@ export default function AuctionCard({ subasta, onPress, variant = 'list' }) {
     >
       <View style={styles.cardHeader}>
         {enVivo ? (
-          <Text style={styles.badgeEnVivoTexto}>● EN VIVO</Text>
+          <>
+            <Text style={styles.badgeEnVivoTexto}>● EN VIVO</Text>
+            <Text style={styles.cardFecha}>{formatFechaHora(fecha)}</Text>
+          </>
         ) : (
-          <Text style={styles.cardFecha}>{formatFecha(fecha)}</Text>
+          <Text style={styles.cardFecha}>{formatFechaHora(fecha)}</Text>
         )}
       </View>
       <Text style={[styles.cardTitulo, finalizada && styles.tituloFinalizado]} numberOfLines={1}>

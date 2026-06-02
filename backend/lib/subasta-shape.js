@@ -18,10 +18,11 @@ function fechaTimestamp(subasta) {
 function estadoApi(subasta) {
   if (subasta.estado === "cerrada") return "finalizada";
   if (subasta.estado === "abierta") {
-    const hoy = new Date().toISOString().slice(0, 10);
-    return subasta.fecha === hoy ? "en_vivo" : "programada";
+    const ahora = new Date();
+    const inicio = new Date(`${subasta.fecha}T${subasta.hora || "00:00:00"}`);
+    return ahora >= inicio ? "en_vivo" : "programada";
   }
-  return subasta.estado; // por si más adelante se agregan valores
+  return subasta.estado;
 }
 
 // Inversa: API estado → filtro sobre DB.estado

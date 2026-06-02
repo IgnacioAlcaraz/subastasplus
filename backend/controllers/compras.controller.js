@@ -9,6 +9,7 @@ const Multas = require("../models/multas");
 const HttpError = require("../lib/http-error");
 const { paginate } = require("../lib/subasta-shape");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
+const { evaluarYActualizarCategoria } = require("../lib/categoria-upgrade");
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -208,6 +209,8 @@ exports.pagar = asyncHandler(async (req, res) => {
     mensaje: "Tu pago fue procesado exitosamente. Podés ver los detalles de tu compra.",
     accionUrl: `/compras/${row.identificador}`,
   });
+
+  await evaluarYActualizarCategoria(req.user.sub);
 
   res.json(await compraShape(row));
 });

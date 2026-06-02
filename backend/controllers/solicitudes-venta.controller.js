@@ -140,13 +140,8 @@ exports.crear = asyncHandler(async (req, res) => {
       campo: "descripcion",
     });
   }
-  if (!Array.isArray(imagenes) || imagenes.length < 6) {
-    throw new HttpError(
-      400,
-      "VENTA_FOTOS_INSUFICIENTES",
-      "Debés subir al menos 6 fotos del bien a subastar.",
-      { fotosEnviadas: Array.isArray(imagenes) ? imagenes.length : 0, fotosRequeridas: 6 },
-    );
+  if (!Array.isArray(imagenes)) {
+    throw new HttpError(400, "VENTA_DATOS_INVALIDOS", "imagenes debe ser un array.", { campo: "imagenes" });
   }
   if (declaracionPropiedad !== true) {
     throw new HttpError(

@@ -85,6 +85,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 24,
     alignItems: 'center',
+    width: '100%',
   },
   botonPrimarioTexto: {
     ...typography.button,

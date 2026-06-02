@@ -1,6 +1,7 @@
 const MediosPago = require("../models/medios_pago");
 const HttpError = require("../lib/http-error");
 const { medioPagoShape } = require("../lib/medio-pago-shape");
+const { evaluarYActualizarCategoria } = require("../lib/categoria-upgrade");
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -18,5 +19,6 @@ exports.verificar = asyncHandler(async (req, res) => {
   }
 
   const updated = await MediosPago.update(id, { verificado: "si" });
+  await evaluarYActualizarCategoria(medio.cliente);
   res.json(medioPagoShape(updated));
 });
