@@ -27,7 +27,12 @@ export default function ResultadoCompraScreen({ navigation, route }) {
   const c = CONTENT[tipo] ?? CONTENT.exitosa;
 
   function handleSalir() {
-    navigation.getParent()?.navigate('Home');
+    const returnTo = route.params?.returnTo;
+    if (returnTo) {
+      navigation.navigate(returnTo);
+    } else {
+      navigation.getParent()?.navigate('Home');
+    }
   }
 
   return (

@@ -29,6 +29,8 @@ export default function EntregaCompraScreen({ navigation, route }) {
     } catch (error) {
       // TODO: descomentar cuando fondos_insuficientes esté activo
       // const tipo = error.status === 402 ? 'fondos_insuficientes' : 'exitosa';
+      // const returnTo = tipo === 'fondos_insuficientes' ? 'Multas' : undefined;
+      // navigation.navigate('ResultadoCompra', { tipo, ...(returnTo ? { returnTo } : {}) });
       navigation.navigate('ResultadoCompra', { tipo: 'exitosa' });
     } finally {
       setLoading(false);
