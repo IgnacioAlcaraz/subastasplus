@@ -21,7 +21,7 @@ function badgeInfo(item) {
   if (item.estado === 'pagada') {
     return { label: 'Enviado', color: colors.textSecondary };
   }
-  return { label: 'Desconocido', color: colors.textDisabled };
+  return null;
 }
 
 function formatFecha(dateStr) {
@@ -57,9 +57,11 @@ function CompraItem({ item, onPress }) {
         <Text style={styles.titulo} numberOfLines={2}>{titulo}</Text>
         <Text style={styles.monto}>{formatMonto(item.total, item.moneda)}</Text>
         <Text style={styles.fecha}>{formatFecha(item.fechaSubasta)}</Text>
-        <View style={[styles.badge, { backgroundColor: `${badge.color}20` }]}>
-          <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
-        </View>
+        {badge && (
+          <View style={[styles.badge, { backgroundColor: `${badge.color}20` }]}>
+            <Text style={[styles.badgeText, { color: badge.color }]}>{badge.label}</Text>
+          </View>
+        )}
       </View>
       <Text style={styles.chevron}>›</Text>
     </TouchableOpacity>
@@ -142,7 +144,7 @@ export default function HistorialComprasScreen({ navigation }) {
 
       <FlatList
         data={compras}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         refreshing={refreshing}
         onRefresh={onRefresh}
@@ -207,5 +209,5 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   badgeText: { ...typography.caption, fontWeight: '600' },
-  chevron: { ...typography.h2, color: colors.textDisabled, marginLeft: 8 },
+  chevron: { fontSize: 20, color: colors.textDisabled, marginLeft: 8 },
 });
