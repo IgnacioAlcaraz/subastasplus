@@ -7,7 +7,9 @@ const SubastasExtension = require("../models/subastas_extension");
 const MediosPago = require("../models/medios_pago");
 const Multas = require("../models/multas");
 const HttpError = require("../lib/http-error");
-const { paginate } = require("../lib/subasta-shape");
+const { paginate, tituloSubasta } = require("../lib/subasta-shape");
+const { aliasPorDefecto } = require("../lib/medio-pago-shape");
+const ItemsCatalogo = require("../models/items_catalogo");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
 const { evaluarYActualizarCategoria } = require("../lib/categoria-upgrade");
 
@@ -16,13 +18,17 @@ function asyncHandler(fn) {
 }
 
 async function compraShape(row) {
-  const [producto, ext, subasta] = await Promise.all([
+  const [producto, ext, subasta, itemCatalogo] = await Promise.all([
     Productos.findById(row.producto),
     RegistroSubastaExtension.findOne({ registro: row.identificador }),
     Subastas.findById(row.subasta),
+    ItemsCatalogo.findOne({ producto: row.producto }),
   ]);
   const subExt = subasta
     ? await SubastasExtension.findOne({ subasta: subasta.identificador })
+    : null;
+  const medioPagoRow = ext?.medio_pago
+    ? await MediosPago.findById(Number(ext.medio_pago))
     : null;
   const importe = Number(row.importe || 0);
   const comision = Number(row.comision || 0);
@@ -52,6 +58,12 @@ async function compraShape(row) {
       ext?.metodo_entrega === "retiro_personal"
         ? "Al retirar personalmente perdés la cobertura de seguro durante el traslado."
         : null,
+    tituloSubasta: subasta ? tituloSubasta(subasta, subExt) : null,
+    fechaSubasta: subasta?.fecha || null,
+    numeroItem: itemCatalogo?.identificador || null,
+    medioPagoAlias: medioPagoRow
+      ? (medioPagoRow.alias || aliasPorDefecto(medioPagoRow))
+      : null,
   };
 }
 
