@@ -50,3 +50,12 @@ export async function agregarCheque({ banco, numeroCheque, monto, moneda, fechaE
   });
   return response.data;
 }
+
+export async function getMedioPago(id) {
+  const response = await client.get(`/medios-pago/${id}`);
+  return response.data;
+}
+
+export async function eliminarMedioPago(id) {
+  await client.delete(`/medios-pago/${id}`);
+}

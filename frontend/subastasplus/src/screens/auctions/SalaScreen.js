@@ -197,11 +197,6 @@ export default function SalaScreen({ navigation, route }) {
           {item.postorId}
         </Text>
         <Text style={styles.pujaMonto}>{formatMonto(item.monto, moneda)}</Text>
-        {item.timestamp && (
-          <Text style={styles.pujaTime}>
-            {Math.round((Date.now() - new Date(item.timestamp).getTime()) / 1000)}s
-          </Text>
-        )}
       </View>
     );
   }
@@ -473,12 +468,6 @@ const styles = StyleSheet.create({
     color: SALA.texto,
     fontWeight: "600",
     marginRight: 12,
-  },
-  pujaTime: {
-    ...typography.caption,
-    color: SALA.textoSec,
-    width: 30,
-    textAlign: "right",
   },
   streamingBoton: {
     alignSelf: "center",

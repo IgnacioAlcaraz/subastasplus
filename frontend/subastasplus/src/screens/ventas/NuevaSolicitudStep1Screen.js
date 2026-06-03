@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Image, Alert, ActivityIndicator,
+  Image, Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, typography } from '../../constants';
@@ -27,9 +27,20 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
   async function agregarFoto() {
     setPickingFoto(true);
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status, canAskAgain } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería para subir fotos.');
+        if (!canAskAgain) {
+          Alert.alert(
+            'Permiso de galería bloqueado',
+            'Habilitalo desde Configuraciones > Permisos > Fotos.',
+            [
+              { text: 'Cancelar', style: 'cancel' },
+              { text: 'Abrir Configuraciones', onPress: () => Linking.openSettings() },
+            ]
+          );
+        } else {
+          Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería para subir fotos.');
+        }
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({

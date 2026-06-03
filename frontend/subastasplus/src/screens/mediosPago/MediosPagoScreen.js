@@ -81,7 +81,12 @@ export default function MediosPagoScreen({ navigation }) {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
         }
-        renderItem={({ item }) => <CardMedioPago item={item} />}
+        renderItem={({ item }) => (
+          <CardMedioPago
+            item={item}
+            onPress={() => navigation.navigate('DetalleMedioPago', { item })}
+          />
+        )}
         ListEmptyComponent={
           <View style={styles.centrado}>
             <Text style={styles.vacioPrincipal}>Sin medios de pago</Text>

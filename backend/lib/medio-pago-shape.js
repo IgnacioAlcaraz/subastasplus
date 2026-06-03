@@ -28,6 +28,7 @@ function medioPagoShape(row) {
     ultimosDigitos: row.ultimos_digitos || null,
     vencimiento: row.vencimiento || null,
     montoCheque: row.monto_cheque != null ? Number(row.monto_cheque) : null,
+    creadoEn: row.created_at || null,
   };
 }
 

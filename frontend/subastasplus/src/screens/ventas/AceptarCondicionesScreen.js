@@ -42,6 +42,7 @@ function validarExterior({ swift, iban, banco, pais, moneda, titular }) {
   return errs;
 }
 
+
 export default function AceptarCondicionesScreen({ navigation, route }) {
   const { solicitud } = route.params;
   const [tipoCuenta, setTipoCuenta] = useState('nacional');

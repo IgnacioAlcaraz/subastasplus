@@ -9,6 +9,7 @@ import {
   FlatList,
   Image,
   Alert,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
@@ -37,9 +38,20 @@ export default function RegisterScreen({ navigation }) {
   }, []);
 
   async function pickImage(lado) {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu cámara para fotografiar el documento');
+      if (!canAskAgain) {
+        Alert.alert(
+          'Permiso de cámara bloqueado',
+          'Habilitalo desde Configuraciones > Permisos > Cámara.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Abrir Configuraciones', onPress: () => Linking.openSettings() },
+          ]
+        );
+      } else {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a tu cámara para fotografiar el documento.');
+      }
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
@@ -97,7 +109,7 @@ export default function RegisterScreen({ navigation }) {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login')}>
             <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
           <Text style={styles.paso}>Paso 1 de 2</Text>

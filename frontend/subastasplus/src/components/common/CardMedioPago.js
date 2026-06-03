@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, typography } from '../../constants';
 
 const TIPO_CONFIG = {
@@ -48,10 +48,11 @@ function BadgeVerificacion({ estado }) {
   );
 }
 
-export default function CardMedioPago({ item }) {
+export default function CardMedioPago({ item, onPress }) {
   const config = TIPO_CONFIG[item.tipo] || {};
+  const Wrapper = onPress ? TouchableOpacity : View;
   return (
-    <View style={styles.card}>
+    <Wrapper style={styles.card} onPress={onPress} activeOpacity={0.75}>
       <View style={styles.icono}>
         <Text style={styles.iconoTexto}>{config.icono || '💰'}</Text>
       </View>
@@ -61,7 +62,7 @@ export default function CardMedioPago({ item }) {
         <BadgeVerificacion estado={item.verificado} />
       </View>
       <Text style={styles.chevron}>›</Text>
-    </View>
+    </Wrapper>
   );
 }
 

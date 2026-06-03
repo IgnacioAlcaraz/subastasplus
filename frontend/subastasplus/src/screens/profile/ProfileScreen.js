@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Image, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, Image, TouchableOpacity, Alert, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, typography } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
@@ -66,9 +66,20 @@ export default function ProfileScreen({ navigation }) {
   }, [cargarPerfil]);
 
   async function seleccionarFoto() {
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    const { status, canAskAgain } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para cambiar la foto de perfil.');
+      if (!canAskAgain) {
+        Alert.alert(
+          'Permiso de cámara bloqueado',
+          'Habilitalo desde Configuraciones > Permisos > Cámara.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            { text: 'Abrir Configuraciones', onPress: () => Linking.openSettings() },
+          ]
+        );
+      } else {
+        Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara para cambiar la foto de perfil.');
+      }
       return;
     }
 
