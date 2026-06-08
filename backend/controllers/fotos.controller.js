@@ -46,6 +46,29 @@ exports.fotoPieza = asyncHandler(async (req, res) => {
   res.send(buf);
 });
 
+// GET /v1/admin/clientes/:id/documento/:lado  (frente | dorso — requiere admin)
+exports.fotoDocumentoCliente = asyncHandler(async (req, res) => {
+  const clienteId = Number(req.params.id);
+  const lado = req.params.lado;
+  if (!["frente", "dorso"].includes(lado)) {
+    throw new HttpError(400, "FOTO_LADO_INVALIDO", "El lado debe ser 'frente' o 'dorso'.");
+  }
+
+  const columna = lado === "frente" ? "foto_frente" : "foto_dorso";
+  const { data, error } = await supabase
+    .from("fotos_documento")
+    .select(columna)
+    .eq("cliente", clienteId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || !data[columna]) throw new HttpError(404, "FOTO_NO_ENCONTRADA", "Foto no encontrada.");
+
+  const buf = byteaToBuffer(data[columna]);
+  res.set("Content-Type", detectMime(buf));
+  res.set("Cache-Control", "private, max-age=3600");
+  res.send(buf);
+});
+
 // GET /v1/solicitudes-venta/:id/fotos/:n  (requiere auth + ownership)
 exports.fotoSolicitud = asyncHandler(async (req, res) => {
   const solicitudId = Number(req.params.id);

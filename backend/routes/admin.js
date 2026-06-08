@@ -1,6 +1,7 @@
 const express = require("express");
 const { verifyAdmin } = require("../middleware/admin");
 const clientesCtrl = require("../controllers/admin-clientes.controller");
+const fotosCtrl = require("../controllers/fotos.controller");
 const mediosPagoCtrl = require("../controllers/admin-medios-pago.controller");
 const solicitudesVentaCtrl = require("../controllers/admin-solicitudes-venta.controller");
 const subastasCtrl = require("../controllers/admin-subastas.controller");
@@ -10,6 +11,8 @@ const router = express.Router();
 router.use(verifyAdmin);
 
 // Gestión de clientes
+router.get("/clientes/pendientes", clientesCtrl.pendientes);
+router.get("/clientes/:id/documento/:lado", fotosCtrl.fotoDocumentoCliente);
 router.post("/clientes/:id/aprobar", clientesCtrl.aprobar);
 router.post("/clientes/:id/rechazar", clientesCtrl.rechazar);
 

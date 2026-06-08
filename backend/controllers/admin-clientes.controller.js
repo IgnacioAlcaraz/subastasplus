@@ -2,15 +2,57 @@ const supabase = require("../supabase-client");
 const Clientes = require("../models/clientes");
 const ClientesAcceso = require("../models/clientes_acceso");
 const Personas = require("../models/personas");
+const Paises = require("../models/paises");
+const FotosDocumento = require("../models/fotos_documento");
 const HttpError = require("../lib/http-error");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
 const { enviarAprobacionCliente } = require("../lib/mailer");
+const { splitNombre } = require("../lib/usuario-shape");
 
 const CATEGORIAS_VALIDAS = ["comun", "especial", "plata", "oro", "platino"];
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
+
+// GET /admin/clientes/pendientes
+exports.pendientes = asyncHandler(async (req, res) => {
+  const { data: clientes, error } = await supabase
+    .from("clientes")
+    .select("*")
+    .eq("admitido", "no")
+    .order("identificador", { ascending: true });
+  if (error) throw error;
+
+  const resultado = await Promise.all(
+    (clientes || []).map(async (cliente) => {
+      const [persona, acceso, pais, fotos] = await Promise.all([
+        Personas.findById(cliente.identificador),
+        ClientesAcceso.findOne({ cliente: cliente.identificador }),
+        Paises.findById(cliente.numero_pais),
+        FotosDocumento.findOne({ cliente: cliente.identificador }),
+      ]);
+      const { nombre, apellido } = splitNombre(persona?.nombre);
+
+      return {
+        id: String(cliente.identificador),
+        nombre,
+        apellido,
+        email: acceso?.email || null,
+        domicilioLegal: persona?.direccion || null,
+        paisOrigen: pais?.nombre || null,
+        documento: persona?.documento || null,
+        fechaRegistro: acceso?.fecha_registro || null,
+        fotosDni: {
+          frente: fotos?.foto_frente ? `/v1/admin/clientes/${cliente.identificador}/documento/frente` : null,
+          dorso: fotos?.foto_dorso ? `/v1/admin/clientes/${cliente.identificador}/documento/dorso` : null,
+        },
+      };
+    }),
+  );
+
+  res.json(resultado);
+});
 
 // POST /admin/clientes/:id/aprobar
 exports.aprobar = asyncHandler(async (req, res) => {
