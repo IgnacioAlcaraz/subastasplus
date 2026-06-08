@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { verificarToken } from '../api/registro';
 import { setPendingAuthRoute } from '../navigation/pendingAuthRoute';
+import { setSessionEventHandlers } from '../navigation/sessionEvents';
 
 const AuthContext = createContext(null);
 
@@ -14,6 +15,14 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     restoreSession();
+
+    // client.js renueva el access token en segundo plano cuando expira (1h);
+    // estos handlers mantienen sincronizado el token en memoria (lo usan SalaScreen,
+    // VentasScreen y VentaDetalleScreen para WebSocket e imágenes autenticadas)
+    setSessionEventHandlers({
+      onTokensRefreshed: (newToken) => setToken(newToken),
+      onSessionExpired: () => logout(),
+    });
   }, []);
 
   async function restoreSession() {
@@ -60,9 +69,10 @@ export function AuthProvider({ children }) {
     }
   }
 
-  async function login(tokenValue, userData) {
+  async function login(tokenValue, userData, refreshTokenValue) {
     await AsyncStorage.setItem('token', tokenValue);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
+    if (refreshTokenValue) await AsyncStorage.setItem('refreshToken', refreshTokenValue);
     await AsyncStorage.removeItem('tokenSeguimiento');
     setToken(tokenValue);
     setUser(userData);
@@ -72,9 +82,10 @@ export function AuthProvider({ children }) {
   }
 
   // guardamos el status en AsyncStorage por si la app se cierra durante el onboarding
-  async function startMedioPagoOnboarding(tokenValue, userData) {
+  async function startMedioPagoOnboarding(tokenValue, userData, refreshTokenValue) {
     await AsyncStorage.setItem('token', tokenValue);
     await AsyncStorage.setItem('user', JSON.stringify(userData));
+    if (refreshTokenValue) await AsyncStorage.setItem('refreshToken', refreshTokenValue);
     await AsyncStorage.setItem('auth_status', 'requires_medio_pago');
     await AsyncStorage.removeItem('tokenSeguimiento');
     setToken(tokenValue);
@@ -97,9 +108,7 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('user');
-    await AsyncStorage.removeItem('auth_status');
+    await AsyncStorage.multiRemove(['token', 'refreshToken', 'user', 'auth_status']);
     setToken(null);
     setUser(null);
     setStatus('unauthenticated');

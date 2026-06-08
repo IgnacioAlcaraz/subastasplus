@@ -30,7 +30,7 @@ export default function LoginScreen({ navigation }) {
 
     setLoading(true);
     try {
-      const { token, usuario } = await login(email, password);
+      const { token, refreshToken, usuario } = await login(email, password);
 
       if (usuario.estado === "pendiente_aprobacion") {
         Alert.alert("Cuenta pendiente", "Tu cuenta está siendo revisada. Te avisamos cuando esté aprobada.");
@@ -41,7 +41,7 @@ export default function LoginScreen({ navigation }) {
         return;
       }
 
-      await saveSession(token, usuario);
+      await saveSession(token, usuario, refreshToken);
     } catch (error) {
       Alert.alert("Error", error.message);
     } finally {

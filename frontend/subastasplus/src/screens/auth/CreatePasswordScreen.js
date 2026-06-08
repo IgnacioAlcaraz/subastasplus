@@ -30,11 +30,11 @@ export default function CreatePasswordScreen() {
 
     setLoading(true);
     try {
-      const { token, usuario } = await registroEtapa2(tokenSeguimiento, pendingData.email, password);
+      const { token, refreshToken, usuario } = await registroEtapa2(tokenSeguimiento, pendingData.email, password);
       if (usuario.cantidadMediosPago === 0) {
-        await startMedioPagoOnboarding(token, usuario);
+        await startMedioPagoOnboarding(token, usuario, refreshToken);
       } else {
-        await saveSession(token, usuario);
+        await saveSession(token, usuario, refreshToken);
       }
     } catch (error) {
       Alert.alert('Error', error.message);
