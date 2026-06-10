@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import HomeScreen from '../screens/home/HomeScreen';
+import HomeNavigator from './HomeNavigator';
 import AuctionsNavigator from './AuctionsNavigator';
 import VentasNavigator from './VentasNavigator';
 import ProfileNavigator from './ProfileNavigator';
@@ -36,7 +36,7 @@ export default function AppNavigator() {
           tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         }}
       >
-        <Tab.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
+        <Tab.Screen name="Home" component={HomeNavigator} options={{ title: 'Inicio' }} />
         <Tab.Screen
           name="Auctions"
           component={AuctionsNavigator}
