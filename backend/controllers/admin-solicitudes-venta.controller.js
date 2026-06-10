@@ -15,6 +15,7 @@ const Subastas = require("../models/subastas");
 const HttpError = require("../lib/http-error");
 const { solicitudShape, polizaShape } = require("../lib/solicitud-venta-shape");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
+const { notificarVenta } = require("../lib/solicitud-venta-notify");
 
 const ADMIN_EMPLEADO_ID = Number(process.env.ADMIN_EMPLEADO_ID);
 
@@ -72,86 +73,123 @@ exports.revisar = asyncHandler(async (req, res) => {
   res.json(solicitudShape({ row: updated }));
 });
 
-// POST /admin/solicitudes-venta/:id/aceptar
-// Body: { valorBase, comisiones, ubicacionDeposito, direccionEnvio, moneda }
-exports.aceptar = asyncHandler(async (req, res) => {
+// POST /admin/solicitudes-venta/:id/aceptar-revision
+// Body: { ubicacionDeposito, direccionEnvio, fechaLimiteEntrega }
+exports.aceptarRevision = asyncHandler(async (req, res) => {
   const row = await findSolicitud(Number(req.params.id));
   if (row.estado !== "en_revision_virtual") {
-    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede aceptar una solicitud en estado 'en_revision_virtual'.", {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede aceptar la revisión de una solicitud en estado 'en_revision_virtual'.", {
       estadoActual: row.estado,
     });
   }
 
-  const { valorBase, comisiones, ubicacionDeposito, direccionEnvio, moneda } = req.body || {};
-  if (!valorBase || Number(valorBase) <= 0) {
-    throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "valorBase es requerido y debe ser mayor a 0.", {
-      campo: "valorBase",
-    });
-  }
-  if (!comisiones || Number(comisiones) < 0) {
-    throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "comisiones es requerido.", { campo: "comisiones" });
-  }
+  const { ubicacionDeposito, direccionEnvio, fechaLimiteEntrega } = req.body || {};
   if (!ubicacionDeposito || !String(ubicacionDeposito).trim()) {
     throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "ubicacionDeposito es requerido.", { campo: "ubicacionDeposito" });
   }
+  if (!fechaLimiteEntrega || !String(fechaLimiteEntrega).trim()) {
+    throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "fechaLimiteEntrega es requerido.", { campo: "fechaLimiteEntrega" });
+  }
 
-  const monedaValida = ["USD", "ARS"].includes(moneda) ? moneda : "USD";
-
-  const duenio = await findOrCreateDuenio(row.cliente);
-
-  // Crear producto
-  const producto = await Productos.create({
-    descripcion_completa: row.descripcion,
-    descripcion_catalogo: row.descripcion,
-    duenio: duenio.identificador,
-    revisor: ADMIN_EMPLEADO_ID,
+  const updated = await SolicitudesVenta.update(row.identificador, {
+    estado: "esperando_entrega",
+    ubicacion_deposito: String(ubicacionDeposito).slice(0, 350),
+    direccion_envio: direccionEnvio ? String(direccionEnvio).slice(0, 350) : null,
+    fecha_limite_entrega: String(fechaLimiteEntrega).slice(0, 100),
   });
 
-  // Extensión del producto
-  await ProductosExtension.create({
-    producto: producto.identificador,
-    es_obra_de_arte: row.tipo === "arte" ? "si" : "no",
-    cantidad_elementos: 1,
+  await notificarVenta(row.cliente, {
+    titulo: "Tu bien fue aceptado para revisión",
+    mensaje: `Llevá tu bien a: ${ubicacionDeposito}. Fecha límite: ${fechaLimiteEntrega}.`,
+    accionUrl: `/solicitudes-venta/${row.identificador}`,
+    emailSubject: "Aceptamos tu bien — coordiná la entrega",
+    emailParrafos: [
+      "Aceptamos tu bien para revisarlo físicamente.",
+      `Lugar de entrega: ${ubicacionDeposito}.`,
+      `Tenés tiempo hasta: ${fechaLimiteEntrega}.`,
+    ],
   });
 
-  // Artista (solo si es arte y tiene datos)
-  if (row.tipo === "arte" && row.nombre_artista) {
-    await ArtistasPiezas.create({
-      producto: producto.identificador,
-      nombre_artista: row.nombre_artista,
-      fecha_obra: row.fecha_obra || null,
-      historia: row.historia || null,
+  res.json(solicitudShape({ row: updated }));
+});
+
+// POST /admin/solicitudes-venta/:id/enviar-propuesta
+// Body: { valorBase, comisiones, moneda }
+exports.enviarPropuesta = asyncHandler(async (req, res) => {
+  const row = await findSolicitud(Number(req.params.id));
+  if (row.estado !== "en_revision_fisica") {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede enviar una propuesta de una solicitud en estado 'en_revision_fisica'.", {
+      estadoActual: row.estado,
     });
   }
 
-  // Copiar fotos de fotos_solicitud_venta → fotos (vinculadas al producto)
-  const { data: fotosOrigen } = await supabase
-    .from("fotos_solicitud_venta")
-    .select("foto")
-    .eq("solicitud", row.identificador)
-    .order("identificador", { ascending: true });
-
-  for (const f of fotosOrigen || []) {
-    await Fotos.create({ producto: producto.identificador, foto: f.foto });
+  const { valorBase, comisiones, moneda } = req.body || {};
+  if (!valorBase || Number(valorBase) <= 0) {
+    throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "valorBase es requerido y debe ser mayor a 0.", { campo: "valorBase" });
+  }
+  if (comisiones == null || Number(comisiones) < 0) {
+    throw new HttpError(400, "ADMIN_DATOS_INVALIDOS", "comisiones es requerido.", { campo: "comisiones" });
   }
 
-  // Actualizar solicitud
+  const monedaValida = ["USD", "ARS"].includes(moneda) ? moneda : (row.moneda || "USD");
+
+  let productoId = row.producto;
+  if (!productoId) {
+    const duenio = await findOrCreateDuenio(row.cliente);
+
+    const producto = await Productos.create({
+      descripcion_completa: row.descripcion,
+      descripcion_catalogo: row.descripcion,
+      duenio: duenio.identificador,
+      revisor: ADMIN_EMPLEADO_ID,
+    });
+    productoId = producto.identificador;
+
+    await ProductosExtension.create({
+      producto: productoId,
+      es_obra_de_arte: row.tipo === "arte" ? "si" : "no",
+      cantidad_elementos: 1,
+    });
+
+    if (row.tipo === "arte" && row.nombre_artista) {
+      await ArtistasPiezas.create({
+        producto: productoId,
+        nombre_artista: row.nombre_artista,
+        fecha_obra: row.fecha_obra || null,
+        historia: row.historia || null,
+      });
+    }
+
+    const { data: fotosOrigen } = await supabase
+      .from("fotos_solicitud_venta")
+      .select("foto")
+      .eq("solicitud", row.identificador)
+      .order("identificador", { ascending: true });
+
+    for (const f of fotosOrigen || []) {
+      await Fotos.create({ producto: productoId, foto: f.foto });
+    }
+  }
+
   const updated = await SolicitudesVenta.update(row.identificador, {
     estado: "propuesta_pendiente",
     valor_base: Number(valorBase),
     comisiones: Number(comisiones),
     costo_envio: Number((Number(valorBase) * 0.02).toFixed(2)),
-    ubicacion_deposito: ubicacionDeposito || null,
-    direccion_envio: direccionEnvio || null,
-    producto: producto.identificador,
+    producto: productoId,
     moneda: monedaValida,
   });
 
-  await crearNotificacion(row.cliente, {
-    tipo: "solicitud_venta",
-    titulo: "Tu bien fue aceptado",
-    mensaje: `Tu solicitud fue aceptada. El valor base asignado es $${valorBase}. Revisá las condiciones en la app.`,
+  await notificarVenta(row.cliente, {
+    titulo: "Recibiste una propuesta de precio",
+    mensaje: `Valor base propuesto: $${valorBase}. Revisá las condiciones en la app.`,
     accionUrl: `/solicitudes-venta/${row.identificador}`,
+    emailSubject: "Tenés una propuesta de precio",
+    emailParrafos: [
+      "Ya tenemos tu bien y preparamos una propuesta de precio.",
+      `Valor base propuesto: $${valorBase} (${monedaValida}).`,
+      `Comisión: ${comisiones}%.`,
+    ],
   });
 
   res.json(solicitudShape({ row: updated }));
@@ -179,11 +217,15 @@ exports.rechazar = asyncHandler(async (req, res) => {
     direccion_envio: direccionDevolucion ? String(direccionDevolucion) : null,
   });
 
-  await crearNotificacion(row.cliente, {
-    tipo: "solicitud_venta",
+  await notificarVenta(row.cliente, {
     titulo: "Tu solicitud fue rechazada",
-    mensaje: `Tu solicitud de venta fue rechazada. Motivo: ${motivoRechazo}. El bien será devuelto con cargo.`,
+    mensaje: `Tu solicitud de venta fue rechazada. Motivo: ${motivoRechazo}.`,
     accionUrl: `/solicitudes-venta/${row.identificador}`,
+    emailSubject: "Tu solicitud fue rechazada",
+    emailParrafos: [
+      "Lamentablemente no podemos avanzar con tu solicitud de venta.",
+      `Motivo: ${motivoRechazo}.`,
+    ],
   });
 
   res.json(solicitudShape({ row: updated }));
@@ -193,8 +235,8 @@ exports.rechazar = asyncHandler(async (req, res) => {
 // Body: { subastaId }
 exports.asignarSubasta = asyncHandler(async (req, res) => {
   const row = await findSolicitud(Number(req.params.id));
-  if (row.estado !== "en_revision_fisica") {
-    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede asignar a subasta una solicitud en estado 'en_revision_fisica'.", {
+  if (row.estado !== "pendiente_asignacion") {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo se puede asignar a subasta una solicitud en estado 'pendiente_asignacion'.", {
       estadoActual: row.estado,
     });
   }
@@ -232,11 +274,18 @@ exports.asignarSubasta = asyncHandler(async (req, res) => {
     subasta_asignada: Number(subastaId),
   });
 
-  await crearNotificacion(row.cliente, {
-    tipo: "solicitud_venta",
+  const cuando = subasta.fecha || "a confirmar";
+  const donde = subasta.ubicacion || "a confirmar";
+  await notificarVenta(row.cliente, {
     titulo: "Tu bien fue asignado a una subasta",
-    mensaje: `Tu bien fue asignado a la subasta #${subastaId}. Podés ver los detalles en la app.`,
+    mensaje: `Subasta #${subastaId}. Si la fecha no te conviene, podés cancelar desde la app.`,
     accionUrl: `/solicitudes-venta/${row.identificador}`,
+    emailSubject: "Tu bien ya tiene subasta asignada",
+    emailParrafos: [
+      `Tu bien fue asignado a la subasta #${subastaId}.`,
+      `Cuándo: ${cuando}. Dónde: ${donde}.`,
+      "Si la fecha te queda lejos, podés cancelar desde la app y retirar tu bien donde lo dejaste.",
+    ],
   });
 
   res.json(solicitudShape({ row: updated }));
@@ -287,11 +336,15 @@ exports.confirmarRecepcion = asyncHandler(async (req, res) => {
     });
   }
   const updated = await SolicitudesVenta.update(row.identificador, { estado: "en_revision_fisica" });
-  await crearNotificacion(row.cliente, {
-    tipo: "solicitud_venta",
+  await notificarVenta(row.cliente, {
     titulo: "Bien recibido en depósito",
-    mensaje: "Tu bien llegó a nuestro depósito y está siendo inspeccionado.",
+    mensaje: "Tu bien llegó a nuestro depósito y está siendo inspeccionado. Pronto recibirás una propuesta de precio.",
     accionUrl: `/solicitudes-venta/${row.identificador}`,
+    emailSubject: "Recibimos tu bien",
+    emailParrafos: [
+      "Tu bien llegó a nuestro depósito y lo estamos inspeccionando.",
+      "Cuando termine la revisión te enviaremos una propuesta de precio (o te avisaremos si no podemos avanzar).",
+    ],
   });
   res.json(solicitudShape({ row: updated }));
 });
@@ -315,11 +368,16 @@ exports.rechazarDeposito = asyncHandler(async (req, res) => {
     direccion_envio: direccionDevolucion ? String(direccionDevolucion) : null,
   };
   const updated = await SolicitudesVenta.update(row.identificador, updateData);
-  await crearNotificacion(row.cliente, {
-    tipo: "solicitud_venta",
+  await notificarVenta(row.cliente, {
     titulo: "Bien rechazado en depósito",
     mensaje: `Tu bien no superó la inspección física. Motivo: ${motivoRechazo}`,
     accionUrl: `/solicitudes-venta/${row.identificador}`,
+    emailSubject: "No podemos avanzar con tu bien",
+    emailParrafos: [
+      "Revisamos tu bien físicamente y no podemos avanzar con la venta.",
+      `Motivo: ${motivoRechazo}.`,
+      "Coordinaremos la devolución del bien.",
+    ],
   });
   res.json(solicitudShape({ row: updated }));
 });

@@ -11,6 +11,7 @@ router.get("/", ctrl.listar);
 router.post("/", ctrl.crear);
 router.get("/:id", ctrl.detalle);
 router.post("/:id/aceptar-condiciones", ctrl.aceptarCondiciones);
+router.post("/:id/cancelar", ctrl.cancelar);
 router.get("/:id/poliza", ctrl.verPoliza);
 router.get("/:id/contactar-aseguradora", ctrl.contactarAseguradora);
 router.get("/:id/fotos/:n", fotosCtrl.fotoSolicitud);

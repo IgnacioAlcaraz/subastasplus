@@ -21,6 +21,8 @@ const ESTADO_COLOR = {
   en_subasta: colors.primaryDark,
   vendida: colors.textDisabled,
   no_vendida: colors.textDisabled,
+  pendiente_asignacion: colors.primary,
+  cancelado: colors.textDisabled,
 };
 
 const ESTADO_LABEL = {
@@ -35,6 +37,8 @@ const ESTADO_LABEL = {
   en_subasta: 'En subasta',
   vendida: 'Vendida',
   no_vendida: 'No vendida',
+  pendiente_asignacion: 'Pendiente asignación',
+  cancelado: 'Cancelada',
 };
 
 export default function VentasScreen({ navigation }) {

@@ -79,7 +79,9 @@ exports.aprobar = asyncHandler(async (req, res) => {
   const persona = await Personas.findById(clienteId);
   const nombreCliente = persona?.nombre?.split(" ")[0] || "Cliente";
   if (acceso?.email) {
-    await enviarAprobacionCliente(acceso.email, nombreCliente, categoria);
+    enviarAprobacionCliente(acceso.email, nombreCliente, categoria).catch((err) =>
+      console.error("[mailer] Error enviando email de aprobación:", err.message)
+    );
   }
 
   await crearNotificacion(clienteId, {

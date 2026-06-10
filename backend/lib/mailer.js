@@ -8,6 +8,10 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 async function enviarCodigoRecuperacion(email, codigo) {
   await transporter.sendMail({
     from: `"SubastasPlus" <${process.env.MAIL_USER}>`,
@@ -41,4 +45,19 @@ async function enviarAprobacionCliente(email, nombre, categoria) {
   });
 }
 
-module.exports = { enviarCodigoRecuperacion, enviarAprobacionCliente };
+async function enviarNotificacionVenta(email, { subject, titulo, parrafos = [] }) {
+  await transporter.sendMail({
+    from: `"SubastasPlus" <${process.env.MAIL_USER}>`,
+    to: email,
+    subject,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2>${escapeHtml(titulo)}</h2>
+        ${parrafos.map((p) => `<p style="color:#444">${escapeHtml(p)}</p>`).join("")}
+        <p style="color:#888;font-size:13px">Ingresá a la app para ver el detalle.</p>
+      </div>
+    `,
+  });
+}
+
+module.exports = { enviarCodigoRecuperacion, enviarAprobacionCliente, enviarNotificacionVenta };

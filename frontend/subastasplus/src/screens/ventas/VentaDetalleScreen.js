@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { colors, typography } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
-import { getSolicitudById, aceptarCondiciones } from '../../api/solicitudesVenta';
+import { getSolicitudById, aceptarCondiciones, cancelarSolicitud } from '../../api/solicitudesVenta';
 import { SERVER_URL, esErrorServidor } from '../../api/client';
 import Button from '../../components/common/Button';
 import ServerErrorScreen from '../../components/common/ServerErrorScreen';
@@ -155,7 +155,7 @@ function ContenidoNoVendida({ solicitud }) {
   );
 }
 
-function ContenidoEnSubasta({ solicitud, navigation }) {
+function ContenidoEnSubasta({ solicitud, navigation, onCancelar, cancelando }) {
   const sym = monedaSimbolo(solicitud.moneda);
   return (
     <View style={styles.body}>
@@ -194,48 +194,54 @@ function ContenidoEnSubasta({ solicitud, navigation }) {
       ) : (
         <Text style={styles.meta}>Sin póliza asignada aún.</Text>
       )}
+
+      <View style={[styles.btns, { marginTop: 8 }]}>
+        <TouchableOpacity
+          style={styles.btnRechazar}
+          onPress={onCancelar}
+          disabled={cancelando}
+          activeOpacity={0.8}
+        >
+          {cancelando
+            ? <ActivityIndicator color={colors.textSecondary} />
+            : <Text style={styles.btnRechazarText}>Cancelar venta</Text>}
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 function ContenidoEsperandoEntrega({ solicitud }) {
-  const sym = monedaSimbolo(solicitud.moneda);
   return (
     <View style={styles.body}>
-      <Text style={styles.nombre}>Esperando entrega</Text>
+      <Text style={styles.nombre}>Coordiná la entrega</Text>
       <Text style={styles.esperando}>
-        Aceptaste las condiciones. Enviá el bien a la dirección indicada.
+        Aceptamos tu bien para revisarlo. Llevalo al lugar indicado dentro del plazo.
       </Text>
 
-      {solicitud.ubicacionDeposito ? (
-        <View style={styles.infoCard}>
-          <Text style={styles.infoCardTitulo}>Dirección de entrega</Text>
-          <Text style={styles.meta}>{solicitud.ubicacionDeposito}</Text>
-        </View>
-      ) : null}
+      <View style={styles.infoCard}>
+        <Text style={styles.infoCardTitulo}>Dónde llevarlo</Text>
+        <Text style={styles.meta}>{solicitud.ubicacionDeposito || 'Pendiente'}</Text>
+      </View>
 
       <View style={styles.infoCard}>
-        <Text style={styles.infoCardTitulo}>Condiciones acordadas</Text>
-        <Text style={styles.meta}>Valor base: {sym} {fmt(solicitud.valorBase)}</Text>
-        <Text style={styles.meta}>Comisión: {solicitud.comisiones}%</Text>
-        <Text style={styles.meta}>Neto estimado: {sym} {fmt(solicitud.valorBase * (1 - solicitud.comisiones / 100))}</Text>
+        <Text style={styles.infoCardTitulo}>Hasta cuándo</Text>
+        <Text style={styles.meta}>{solicitud.fechaLimiteEntrega || 'Pendiente'}</Text>
       </View>
 
       <Text style={styles.meta}>
-        Una vez que el bien llegue al depósito, será inspeccionado. Si no coincide con lo declarado podrá ser rechazado y el envío de devolución tendrá cargo.
+        Cuando recibamos el bien lo inspeccionaremos y te enviaremos una propuesta de precio.
       </Text>
     </View>
   );
 }
 
 function ContenidoRevisionFisica({ solicitud }) {
-  const neto = solicitud.valorBase * (1 - solicitud.comisiones / 100);
-  const sym = monedaSimbolo(solicitud.moneda);
   return (
     <View style={styles.body}>
       <Text style={styles.nombre}>En revisión física</Text>
       <Text style={styles.esperando}>
-        Tu bien llegó a nuestro depósito y está siendo inspeccionado.
+        Tu bien llegó a nuestro depósito y está siendo inspeccionado. Pronto recibirás una propuesta de precio.
       </Text>
 
       {solicitud.ubicacionDeposito ? (
@@ -244,12 +250,39 @@ function ContenidoRevisionFisica({ solicitud }) {
           <Text style={styles.meta}>{solicitud.ubicacionDeposito}</Text>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+function ContenidoPendienteAsignacion({ solicitud }) {
+  const sym = monedaSimbolo(solicitud.moneda);
+  return (
+    <View style={styles.body}>
+      <Text style={styles.nombre}>Pendiente asignación a subasta</Text>
+      <Text style={styles.esperando}>
+        Aceptaste la propuesta. Tu bien está pendiente de asignación a una subasta. Te avisaremos cuando se asigne.
+      </Text>
 
       <View style={styles.infoCard}>
         <Text style={styles.infoCardTitulo}>Condiciones acordadas</Text>
         <Text style={styles.meta}>Valor base: {sym} {fmt(solicitud.valorBase)}</Text>
         <Text style={styles.meta}>Comisión: {solicitud.comisiones}%</Text>
-        <Text style={styles.meta}>Neto estimado: {sym} {fmt(neto)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function ContenidoCancelado({ solicitud }) {
+  return (
+    <View style={styles.body}>
+      <Text style={styles.nombre}>Venta cancelada</Text>
+      <Text style={styles.esperando}>
+        Cancelaste la venta. Podés retirar tu bien donde lo dejaste.
+      </Text>
+
+      <View style={styles.infoCard}>
+        <Text style={styles.infoCardTitulo}>Retiralo en</Text>
+        <Text style={styles.meta}>{solicitud.ubicacionDeposito || 'El depósito donde lo dejaste'}</Text>
       </View>
     </View>
   );
@@ -305,6 +338,7 @@ export default function VentaDetalleScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [errorServidor, setErrorServidor] = useState(false);
   const [rechazando, setRechazando] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -350,6 +384,29 @@ export default function VentaDetalleScreen({ navigation, route }) {
     }
   }
 
+  function confirmarCancelar() {
+    Alert.alert(
+      'Cancelar venta',
+      'Si cancelás, tu bien saldrá de la subasta y deberás retirarlo donde lo dejaste. ¿Confirmás?',
+      [
+        { text: 'Volver', style: 'cancel' },
+        { text: 'Cancelar venta', style: 'destructive', onPress: cancelar },
+      ]
+    );
+  }
+
+  async function cancelar() {
+    setCancelando(true);
+    try {
+      await cancelarSolicitud(id);
+      await cargar();
+    } catch {
+      await cargar();
+    } finally {
+      setCancelando(false);
+    }
+  }
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -380,12 +437,16 @@ export default function VentaDetalleScreen({ navigation, route }) {
         return <ContenidoEsperandoEntrega solicitud={solicitud} />;
       case 'en_revision_fisica':
         return <ContenidoRevisionFisica solicitud={solicitud} />;
+      case 'pendiente_asignacion':
+        return <ContenidoPendienteAsignacion solicitud={solicitud} />;
       case 'rechazada_admin':
       case 'rechazada_cliente':
       case 'rechazada_deposito':
         return <ContenidoRechazada solicitud={solicitud} />;
+      case 'cancelado':
+        return <ContenidoCancelado solicitud={solicitud} />;
       case 'en_subasta':
-        return <ContenidoEnSubasta solicitud={solicitud} navigation={navigation} />;
+        return <ContenidoEnSubasta solicitud={solicitud} navigation={navigation} onCancelar={confirmarCancelar} cancelando={cancelando} />;
       case 'vendida':
         return <ContenidoVendida solicitud={solicitud} />;
       case 'no_vendida':

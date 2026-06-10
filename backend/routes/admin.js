@@ -21,7 +21,8 @@ router.post("/medios-pago/:id/verificar", mediosPagoCtrl.verificar);
 
 // Solicitudes de venta
 router.post("/solicitudes-venta/:id/revisar", solicitudesVentaCtrl.revisar);
-router.post("/solicitudes-venta/:id/aceptar", solicitudesVentaCtrl.aceptar);
+router.post("/solicitudes-venta/:id/aceptar-revision", solicitudesVentaCtrl.aceptarRevision);
+router.post("/solicitudes-venta/:id/enviar-propuesta", solicitudesVentaCtrl.enviarPropuesta);
 router.post("/solicitudes-venta/:id/rechazar", solicitudesVentaCtrl.rechazar);
 router.post("/solicitudes-venta/:id/asignar-subasta", solicitudesVentaCtrl.asignarSubasta);
 router.post("/solicitudes-venta/:id/seguro", solicitudesVentaCtrl.crearSeguro);

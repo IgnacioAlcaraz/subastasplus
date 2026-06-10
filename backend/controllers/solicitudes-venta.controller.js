@@ -22,6 +22,7 @@ const {
 } = require("../lib/subasta-shape");
 const { cantidadPiezasDeSubasta } = require("../lib/subastas-helper");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
+const { notificarVenta } = require("../lib/solicitud-venta-notify");
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -237,7 +238,7 @@ exports.aceptarCondiciones = asyncHandler(async (req, res) => {
   }
 
   const updated = await SolicitudesVenta.update(row.identificador, {
-    estado: "esperando_entrega",
+    estado: "pendiente_asignacion",
     cuenta_cobro_tipo: cuentaCobro.tipo,
     cuenta_cobro_banco: cuentaCobro.banco || null,
     cuenta_cobro_titular: cuentaCobro.titular || null,
@@ -248,11 +249,15 @@ exports.aceptarCondiciones = asyncHandler(async (req, res) => {
     cuenta_cobro_moneda: cuentaCobro.moneda || null,
   });
 
-  await crearNotificacion(req.user.sub, {
-    tipo: "solicitud_venta",
-    titulo: "Condiciones aceptadas",
-    mensaje: "Aceptaste las condiciones de venta. Tu bien quedará disponible para ser asignado a una subasta.",
+  await notificarVenta(req.user.sub, {
+    titulo: "Propuesta aceptada",
+    mensaje: "Aceptaste la propuesta. Tu bien quedó pendiente de asignación a una subasta. Te avisaremos cuando se asigne.",
     accionUrl: `/solicitudes-venta/${row.identificador}`,
+    emailSubject: "Aceptaste la propuesta",
+    emailParrafos: [
+      "Aceptaste la propuesta de precio.",
+      "Tu bien quedó pendiente de asignación a una subasta. Te avisaremos por mail y notificación cuando se asigne.",
+    ],
   });
 
   res.json(await fullShape(updated));
@@ -288,4 +293,40 @@ exports.contactarAseguradora = asyncHandler(async (req, res) => {
   const seguro = await Seguros.findById(row.seguro);
   const ext = await SegurosExtension.findOne({ nro_poliza: row.seguro });
   res.json(contactoAseguradoraShape(seguro, ext));
+});
+
+// POST /solicitudes-venta/:id/cancelar
+exports.cancelar = asyncHandler(async (req, res) => {
+  const row = await findOwn(Number(req.params.id), req.user.sub);
+
+  if (row.estado !== "en_subasta") {
+    throw new HttpError(409, "SOLICITUD_ESTADO_INVALIDO", "Solo podés cancelar un bien que ya fue asignado a una subasta.", {
+      estadoActual: row.estado,
+    });
+  }
+
+  if (row.producto) {
+    const item = await ItemsCatalogo.findOne({ producto: row.producto });
+    if (item) {
+      await supabase.from("items_catalogo_estado").delete().eq("item", item.identificador);
+      await supabase.from("items_catalogo").delete().eq("identificador", item.identificador);
+    }
+  }
+
+  const updated = await SolicitudesVenta.update(row.identificador, {
+    estado: "cancelado",
+  });
+
+  await notificarVenta(req.user.sub, {
+    titulo: "Cancelaste la venta",
+    mensaje: `Cancelaste la venta. Podés retirar tu bien en: ${row.ubicacion_deposito || "el depósito donde lo dejaste"}.`,
+    accionUrl: `/solicitudes-venta/${row.identificador}`,
+    emailSubject: "Cancelaste la venta de tu bien",
+    emailParrafos: [
+      "Confirmamos la cancelación de la venta.",
+      `Podés retirar tu bien en: ${row.ubicacion_deposito || "el depósito donde lo dejaste"}.`,
+    ],
+  });
+
+  res.json(await fullShape(updated));
 });
