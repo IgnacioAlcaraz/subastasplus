@@ -36,7 +36,16 @@ export default function PreIngresoScreen({ navigation, route }) {
         moneda: subasta.moneda,
       });
     } catch (error) {
-      Alert.alert("No podés ingresar", error.message || "Error al acceder a la sala.");
+      if (error.status === 409 && error.data?.code === "MEDIO_PAGO_REQUERIDO") {
+        navigation.navigate("PreIngresoMedioPago", {
+          subastaId: subasta.id,
+          titulo: subasta.titulo,
+          moneda: error.data?.data?.moneda || subasta.moneda,
+          medios: error.data?.data?.medios || [],
+        });
+      } else {
+        Alert.alert("No podés ingresar", error.message || "Error al acceder a la sala.");
+      }
     } finally {
       setLoading(false);
     }

@@ -10,8 +10,8 @@ export async function getCompra(id) {
   return response.data;
 }
 
-export async function pagarCompra(id, { medioPagoId, metodoEntrega, direccionEnvio }) {
-  const body = { medioPagoId, metodoEntrega };
+export async function pagarCompra(id, { metodoEntrega, direccionEnvio }) {
+  const body = { metodoEntrega };
   if (direccionEnvio) body.direccionEnvio = direccionEnvio;
   const response = await client.post(`/compras/${id}/pagar`, body);
   return response.data;

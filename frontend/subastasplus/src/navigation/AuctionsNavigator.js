@@ -5,8 +5,8 @@ import AuctionDetailScreen from "../screens/auctions/AuctionDetailScreen";
 import CatalogScreen from "../screens/auctions/CatalogScreen";
 import PieceDetailScreen from "../screens/auctions/PieceDetailScreen";
 import PreIngresoScreen from "../screens/auctions/PreIngresoScreen";
+import PreIngresoMedioPagoScreen from "../screens/auctions/PreIngresoMedioPagoScreen";
 import SalaScreen from "../screens/auctions/SalaScreen";
-import SelMedioPagoCompraScreen from "../screens/compras/SelMedioPagoCompraScreen";
 import FacturaCompraScreen from "../screens/compras/FacturaCompraScreen";
 import EntregaCompraScreen from "../screens/compras/EntregaCompraScreen";
 import ResultadoCompraScreen from "../screens/compras/ResultadoCompraScreen";
@@ -21,8 +21,8 @@ export default function AuctionsNavigator() {
       <Stack.Screen name="Catalog" component={CatalogScreen} />
       <Stack.Screen name="PieceDetail" component={PieceDetailScreen} />
       <Stack.Screen name="PreIngreso" component={PreIngresoScreen} />
+      <Stack.Screen name="PreIngresoMedioPago" component={PreIngresoMedioPagoScreen} />
       <Stack.Screen name="Sala" component={SalaScreen} />
-      <Stack.Screen name="SelMedioPago" component={SelMedioPagoCompraScreen} />
       <Stack.Screen name="FacturaCompra" component={FacturaCompraScreen} />
       <Stack.Screen name="EntregaCompra" component={EntregaCompraScreen} />
       <Stack.Screen name="ResultadoCompra" component={ResultadoCompraScreen} />

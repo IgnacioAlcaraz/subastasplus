@@ -17,7 +17,6 @@ import MetricasScreen from '../screens/profile/MetricasScreen';
 import HistorialParticipacionesScreen from '../screens/profile/HistorialParticipacionesScreen';
 import DetalleParticipacionScreen from '../screens/profile/DetalleParticipacionScreen';
 import HistorialPujasScreen from '../screens/profile/HistorialPujasScreen';
-import SelMedioPagoCompraScreen from '../screens/compras/SelMedioPagoCompraScreen';
 import FacturaCompraScreen from '../screens/compras/FacturaCompraScreen';
 import EntregaCompraScreen from '../screens/compras/EntregaCompraScreen';
 import ResultadoCompraScreen from '../screens/compras/ResultadoCompraScreen';
@@ -40,7 +39,6 @@ export default function ProfileNavigator() {
       <Stack.Screen name="MultaPagada" component={MultaPagadaScreen} />
       <Stack.Screen name="HistorialCompras" component={HistorialComprasScreen} />
       <Stack.Screen name="CompraDetalle" component={CompraDetalleScreen} />
-      <Stack.Screen name="SelMedioPago" component={SelMedioPagoCompraScreen} />
       <Stack.Screen name="FacturaCompra" component={FacturaCompraScreen} />
       <Stack.Screen name="EntregaCompra" component={EntregaCompraScreen} />
       <Stack.Screen name="ResultadoCompra" component={ResultadoCompraScreen} />

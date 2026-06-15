@@ -90,6 +90,7 @@ client.interceptors.response.use(
     const message = error.response?.data?.message || error.message || 'Error de red';
     const err = new Error(message);
     err.status = error.response?.status;
+    err.data = error.response?.data;
     return Promise.reject(err);
   }
 );

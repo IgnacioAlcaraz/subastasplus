@@ -12,7 +12,7 @@ function formatMonto(monto, moneda) {
 }
 
 export default function FacturaCompraScreen({ navigation, route }) {
-  const { compraId, moneda, numeroItem, medioPago } = route.params;
+  const { compraId, moneda, numeroItem } = route.params;
   const [compra, setCompra] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -68,14 +68,14 @@ export default function FacturaCompraScreen({ navigation, route }) {
 
             <View style={styles.separador} />
 
-            <Text style={styles.metaText}>Medio: {medioPago.alias}</Text>
+            <Text style={styles.metaText}>Medio: {compra.medioPagoAlias || '—'}</Text>
             <Text style={styles.metaText}>Moneda: {moneda}</Text>
           </ScrollView>
 
           <View style={styles.footer}>
             <Button
               title="Continuar"
-              onPress={() => navigation.navigate('EntregaCompra', { compraId, compra, medioPago, numeroItem })}
+              onPress={() => navigation.navigate('EntregaCompra', { compraId, compra, numeroItem })}
             />
           </View>
         </>

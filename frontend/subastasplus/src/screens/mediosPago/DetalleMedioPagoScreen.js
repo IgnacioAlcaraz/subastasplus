@@ -20,16 +20,12 @@ const TIPO_LABEL = {
 };
 
 function monedasPorTipo(tipo, moneda) {
-  if (tipo === 'tarjeta_credito') return 'ARS, USD';
   if (moneda) return moneda;
   return 'ARS';
 }
 
 function aceptaUsd(tipo, moneda) {
-  if (tipo === 'tarjeta_credito') return true;
-  if (tipo === 'cuenta_exterior') return moneda === 'USD';
-  if (tipo === 'cheque_certificado') return moneda === 'USD';
-  return false;
+  return moneda === 'USD';
 }
 
 function formatearFecha(isoString) {
@@ -97,9 +93,9 @@ export default function DetalleMedioPagoScreen({ route, navigation }) {
           {item.tipo === 'tarjeta_credito' && item.vencimiento && (
             <Text style={styles.infoLinea}>Vencimiento: {item.vencimiento}</Text>
           )}
-          {item.tipo === 'cheque_certificado' && item.montoCheque != null && (
+          {item.montoDisponible != null && (
             <Text style={styles.infoLinea}>
-              Monto: ${Number(item.montoCheque).toLocaleString('es-AR')} {item.moneda}
+              Monto disponible: ${Number(item.montoDisponible).toLocaleString('es-AR')} {item.moneda}
             </Text>
           )}
         </View>

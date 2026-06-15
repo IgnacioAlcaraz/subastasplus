@@ -8,7 +8,7 @@ import { colors, typography } from '../../constants';
 import { pagarCompra } from '../../api/compras';
 
 export default function EntregaCompraScreen({ navigation, route }) {
-  const { compraId, compra, medioPago, numeroItem } = route.params;
+  const { compraId, compra, numeroItem } = route.params;
   const [metodoEntrega, setMetodoEntrega] = useState('envio');
   const [direccion, setDireccion] = useState('');
   const [loading, setLoading] = useState(false);
@@ -21,7 +21,6 @@ export default function EntregaCompraScreen({ navigation, route }) {
     setLoading(true);
     try {
       await pagarCompra(compraId, {
-        medioPagoId: medioPago.id,
         metodoEntrega,
         direccionEnvio: metodoEntrega === 'envio' ? direccion.trim() : undefined,
       });

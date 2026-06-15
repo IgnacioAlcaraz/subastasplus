@@ -106,7 +106,7 @@ export default function HistorialComprasScreen({ navigation }) {
       return;
     }
     if (item.estado === 'pendiente_pago') {
-      navigation.navigate('SelMedioPago', {
+      navigation.navigate('FacturaCompra', {
         compraId: item.id,
         moneda: item.moneda,
         numeroItem: item.numeroItem,

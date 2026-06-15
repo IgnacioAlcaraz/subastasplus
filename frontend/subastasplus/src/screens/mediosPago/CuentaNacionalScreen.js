@@ -27,13 +27,14 @@ function formatCuit(text) {
   return digits.slice(0, 2) + '-' + digits.slice(2, 10) + '-' + digits.slice(10);
 }
 
-function validar({ cbu, banco, tipoCuenta, titular, cuitCuil }) {
+function validar({ cbu, banco, tipoCuenta, titular, cuitCuil, saldo }) {
   const errs = {};
   if (cbu.replace(/\D/g, '').length !== 22) errs.cbu = 'El CBU debe tener 22 dígitos';
   if (!banco) errs.banco = 'Seleccioná un banco';
   if (!tipoCuenta) errs.tipoCuenta = 'Seleccioná el tipo de cuenta';
   if (!titular.trim()) errs.titular = 'El titular es obligatorio';
   if (cuitCuil.replace(/\D/g, '').length !== 11) errs.cuitCuil = 'El CUIT/CUIL debe tener 11 dígitos';
+  if (!saldo || !(Number(saldo) > 0)) errs.saldo = 'Ingresá el saldo disponible';
   return errs;
 }
 
@@ -43,12 +44,13 @@ export default function CuentaNacionalScreen({ navigation, route }) {
   const [tipoCuenta, setTipoCuenta] = useState('');
   const [titular, setTitular] = useState('');
   const [cuitCuil, setCuitCuil] = useState('');
+  const [saldo, setSaldo] = useState('');
   const [alias, setAlias] = useState('');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
   async function handleRegistrar() {
-    const errs = validar({ cbu, banco, tipoCuenta, titular, cuitCuil });
+    const errs = validar({ cbu, banco, tipoCuenta, titular, cuitCuil, saldo });
     if (Object.keys(errs).length) {
       setErrors(errs);
       return;
@@ -56,7 +58,7 @@ export default function CuentaNacionalScreen({ navigation, route }) {
     setErrors({});
     setLoading(true);
     try {
-      await agregarCuentaNacional({ banco, cbu, cuitCuil, tipoCuenta, titular, alias });
+      await agregarCuentaNacional({ banco, cbu, cuitCuil, tipoCuenta, titular, alias, saldo: Number(saldo) });
       navigation.navigate(route.params?.successRoute ?? 'RegistroCompleto');
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -99,6 +101,14 @@ export default function CuentaNacionalScreen({ navigation, route }) {
           placeholder="20-12345678-9"
           keyboardType="numeric"
           error={errors.cuitCuil}
+        />
+        <Input
+          label="Saldo disponible (ARS)"
+          value={saldo}
+          onChangeText={t => setSaldo(t.replace(/[^0-9.]/g, ''))}
+          placeholder="50000"
+          keyboardType="numeric"
+          error={errors.saldo}
         />
         <Input
           label="Alias (opcional)"

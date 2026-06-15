@@ -22,7 +22,7 @@ const MONEDAS = [
   { label: 'GBP', value: 'GBP' },
 ];
 
-function validar({ iban, swift, banco, pais, moneda, titular }) {
+function validar({ iban, swift, banco, pais, moneda, titular, saldo }) {
   const errs = {};
   if (!iban.trim()) errs.iban = 'El IBAN es obligatorio';
   const swiftLen = swift.replace(/\s/g, '').length;
@@ -31,6 +31,7 @@ function validar({ iban, swift, banco, pais, moneda, titular }) {
   if (!pais) errs.pais = 'Seleccioná un país';
   if (!moneda) errs.moneda = 'Seleccioná una moneda';
   if (!titular.trim()) errs.titular = 'El titular es obligatorio';
+  if (!saldo || !(Number(saldo) > 0)) errs.saldo = 'Ingresá el saldo disponible';
   return errs;
 }
 
@@ -41,6 +42,7 @@ export default function CuentaExteriorScreen({ navigation, route }) {
   const [pais, setPais] = useState('');
   const [moneda, setMoneda] = useState('');
   const [titular, setTitular] = useState('');
+  const [saldo, setSaldo] = useState('');
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [paises, setPaises] = useState([]);
@@ -52,7 +54,7 @@ export default function CuentaExteriorScreen({ navigation, route }) {
   }, []);
 
   async function handleRegistrar() {
-    const errs = validar({ iban, swift, banco, pais, moneda, titular });
+    const errs = validar({ iban, swift, banco, pais, moneda, titular, saldo });
     if (Object.keys(errs).length) {
       setErrors(errs);
       return;
@@ -60,7 +62,7 @@ export default function CuentaExteriorScreen({ navigation, route }) {
     setErrors({});
     setLoading(true);
     try {
-      await agregarCuentaExterior({ banco, swift: swift.toUpperCase(), iban, pais, titular, moneda });
+      await agregarCuentaExterior({ banco, swift: swift.toUpperCase(), iban, pais, titular, moneda, saldo: Number(saldo) });
       navigation.navigate(route.params?.successRoute ?? 'RegistroCompleto');
     } catch (error) {
       Alert.alert('Error', error.message);
@@ -108,6 +110,14 @@ export default function CuentaExteriorScreen({ navigation, route }) {
           onChangeText={setTitular}
           placeholder="Juan Perez"
           error={errors.titular}
+        />
+        <Input
+          label="Saldo disponible"
+          value={saldo}
+          onChangeText={t => setSaldo(t.replace(/[^0-9.]/g, ''))}
+          placeholder="10000"
+          keyboardType="numeric"
+          error={errors.saldo}
         />
 
         <View style={styles.botonWrapper}>

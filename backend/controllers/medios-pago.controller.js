@@ -42,11 +42,15 @@ exports.listar = asyncHandler(async (req, res) => {
 exports.agregarCuentaNacional = asyncHandler(async (req, res) => {
   requireFields(
     req.body,
-    ["banco", "cbu", "cuitCuil", "tipoCuenta", "titular"],
+    ["banco", "cbu", "cuitCuil", "tipoCuenta", "titular", "saldo"],
     "PAGO_DATOS_INVALIDOS",
     "Faltan campos obligatorios para la cuenta nacional.",
   );
-  const { banco, cbu, cuitCuil, tipoCuenta, titular, alias } = req.body;
+  const { banco, cbu, cuitCuil, tipoCuenta, titular, alias, saldo } = req.body;
+
+  if (!(Number(saldo) > 0)) {
+    throw new HttpError(400, "PAGO_DATOS_INVALIDOS", "El saldo disponible debe ser mayor a cero.", { campo: "saldo" });
+  }
 
   if (!validarCbu(cbu)) {
     throw new HttpError(
@@ -74,6 +78,7 @@ exports.agregarCuentaNacional = asyncHandler(async (req, res) => {
     cuit_cuil: cuitCuil,
     tipo_cuenta: tipoCuenta,
     ultimos_digitos: String(cbu).replace(/\D/g, "").slice(-4),
+    saldo: Number(saldo),
   });
   res.status(201).json(medioPagoShape(row));
 });
@@ -82,11 +87,15 @@ exports.agregarCuentaNacional = asyncHandler(async (req, res) => {
 exports.agregarCuentaExterior = asyncHandler(async (req, res) => {
   requireFields(
     req.body,
-    ["banco", "swift", "iban", "pais", "titular", "moneda"],
+    ["banco", "swift", "iban", "pais", "titular", "moneda", "saldo"],
     "PAGO_CUENTA_EXTERIOR_INVALIDA",
     "Los datos de la cuenta exterior son inválidos. Verificá el código SWIFT y el IBAN.",
   );
-  const { banco, swift, iban, pais, titular, moneda, alias } = req.body;
+  const { banco, swift, iban, pais, titular, moneda, alias, saldo } = req.body;
+
+  if (!(Number(saldo) > 0)) {
+    throw new HttpError(400, "PAGO_CUENTA_EXTERIOR_INVALIDA", "El saldo disponible debe ser mayor a cero.", { campo: "saldo" });
+  }
 
   if (!["USD", "EUR", "GBP"].includes(moneda)) {
     throw new HttpError(
@@ -117,6 +126,7 @@ exports.agregarCuentaExterior = asyncHandler(async (req, res) => {
     iban: String(iban).replace(/\s+/g, ""),
     pais,
     ultimos_digitos: String(iban).replace(/\s+/g, "").slice(-4),
+    saldo: Number(saldo),
   });
   res.status(201).json(medioPagoShape(row));
 });
@@ -125,11 +135,18 @@ exports.agregarCuentaExterior = asyncHandler(async (req, res) => {
 exports.agregarTarjeta = asyncHandler(async (req, res) => {
   requireFields(
     req.body,
-    ["numero", "titular", "vencimiento", "codigoSeguridad"],
+    ["numero", "titular", "vencimiento", "codigoSeguridad", "limiteCredito", "moneda"],
     "PAGO_TARJETA_INVALIDA",
     "Faltan campos obligatorios para la tarjeta.",
   );
-  const { numero, titular, vencimiento } = req.body;
+  const { numero, titular, vencimiento, limiteCredito, moneda } = req.body;
+
+  if (!["ARS", "USD"].includes(moneda)) {
+    throw new HttpError(400, "PAGO_TARJETA_INVALIDA", "Moneda inválida. Debe ser ARS o USD.", { campo: "moneda" });
+  }
+  if (!(Number(limiteCredito) > 0)) {
+    throw new HttpError(400, "PAGO_TARJETA_INVALIDA", "El límite de crédito debe ser mayor a cero.", { campo: "limiteCredito" });
+  }
 
   const numStr = String(numero).replace(/\D/g, "");
   if (!validarLuhn(numStr)) {
@@ -149,15 +166,16 @@ exports.agregarTarjeta = asyncHandler(async (req, res) => {
     );
   }
 
-  // No guardamos el número completo, solo los últimos 4. CVV nunca se persiste.
   const row = await MediosPago.create({
     cliente: req.user.sub,
     tipo: "tarjeta_credito",
     verificado: "no",
     alias: req.body.alias || null,
+    moneda,
     titular,
     vencimiento,
     ultimos_digitos: numStr.slice(-4),
+    limite_credito: Number(limiteCredito),
   });
   res.status(201).json(medioPagoShape(row));
 });

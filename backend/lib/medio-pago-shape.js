@@ -18,6 +18,19 @@ function aliasPorDefecto(row) {
   return banco;
 }
 
+function montoDisponible(row) {
+  if (row.tipo === "cuenta_nacional" || row.tipo === "cuenta_exterior") {
+    return row.saldo != null ? Number(row.saldo) : null;
+  }
+  if (row.tipo === "tarjeta_credito") {
+    return row.limite_credito != null ? Number(row.limite_credito) : null;
+  }
+  if (row.tipo === "cheque_certificado") {
+    return row.monto_cheque != null ? Number(row.monto_cheque) : null;
+  }
+  return null;
+}
+
 function medioPagoShape(row) {
   return {
     id: String(row.identificador),
@@ -28,6 +41,7 @@ function medioPagoShape(row) {
     ultimosDigitos: row.ultimos_digitos || null,
     vencimiento: row.vencimiento || null,
     montoCheque: row.monto_cheque != null ? Number(row.monto_cheque) : null,
+    montoDisponible: montoDisponible(row),
     creadoEn: row.created_at || null,
   };
 }
@@ -78,6 +92,7 @@ function tarjetaVencida(vencimiento) {
 
 module.exports = {
   medioPagoShape,
+  montoDisponible,
   aliasPorDefecto,
   validarCbu,
   validarLuhn,

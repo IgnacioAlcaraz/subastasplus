@@ -421,7 +421,7 @@ export default function SalaScreen({ navigation, route }) {
           <TouchableOpacity
             style={styles.ganadorBoton}
             onPress={() =>
-              navigation.navigate("SelMedioPago", {
+              navigation.navigate("FacturaCompra", {
                 compraId,
                 moneda,
                 numeroItem: piezaGanada?.numeroItem,

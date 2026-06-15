@@ -72,26 +72,36 @@ exports.detalle = asyncHandler(async (req, res) => {
   const rematador = await rematadorNombrePorSubasta(subasta.subastador);
   const cant = await cantidadPiezasDeSubasta(subasta.identificador);
 
-  // puedeEntrar: si está logueado y cumple criterios (simplificado por ahora)
   let puedeEntrar = false;
   let razonNoEntrar = null;
   if (req.user) {
-    // El chequeo completo se hace en /sala. Acá un preview básico.
     const { puedeEntrarPorCategoria } = require("../lib/categoria");
     const Clientes = require("../models/clientes");
-    const MediosPago = require("../models/medios_pago");
     const cli = await Clientes.findById(req.user.sub);
+    const monedaSubasta = ext?.moneda || "ARS";
     if (!cli) razonNoEntrar = "Usuario no encontrado";
     else if (!puedeEntrarPorCategoria(cli.categoria, subasta.categoria)) {
       razonNoEntrar = "Categoría insuficiente";
     } else {
-      const verificados = await supabase
-        .from("medios_pago")
-        .select("*", { count: "exact", head: true })
-        .eq("cliente", cli.identificador)
-        .eq("verificado", "si");
-      if (!verificados.count) razonNoEntrar = "Sin medio de pago verificado";
-      else puedeEntrar = true;
+      // Chequear si ya tiene medio_pago fijado para esta subasta
+      const asistenteExistente = await Asistentes.findOne({ cliente: cli.identificador, subasta: subasta.identificador });
+      let medioPagoFijado = false;
+      if (asistenteExistente) {
+        const extAsistente = await AsistentesExtension.findOne({ asistente: asistenteExistente.identificador });
+        medioPagoFijado = !!extAsistente?.medio_pago;
+      }
+      if (medioPagoFijado) {
+        puedeEntrar = true;
+      } else {
+        const { count: compatibles } = await supabase
+          .from("medios_pago")
+          .select("*", { count: "exact", head: true })
+          .eq("cliente", cli.identificador)
+          .eq("verificado", "si")
+          .eq("moneda", monedaSubasta);
+        if (!compatibles) razonNoEntrar = `Sin medio de pago verificado en ${monedaSubasta}`;
+        else puedeEntrar = true;
+      }
     }
   } else {
     razonNoEntrar = "No autenticado";
@@ -219,9 +229,11 @@ exports.detallePieza = asyncHandler(async (req, res) => {
 const Clientes = require("../models/clientes");
 const Asistentes = require("../models/asistentes");
 const AsistentesExtension = require("../models/asistentes_extension");
+const MediosPagoModel = require("../models/medios_pago");
 const Pujos = require("../models/pujos");
 const PujosExtension = require("../models/pujos_extension");
 const { puedeEntrarPorCategoria, pujaSinMaximo } = require("../lib/categoria");
+const { medioPagoShape } = require("../lib/medio-pago-shape");
 const realtime = require("../lib/realtime");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
 const { multaPendienteData } = require("../lib/multas-helper");
@@ -249,6 +261,67 @@ async function ultimasPujasDeItem(itemId, usuarioClienteId, limit = 10) {
   return result;
 }
 
+// POST /subastas/:id/medio-pago
+exports.fijarMedioPago = asyncHandler(async (req, res) => {
+  const subastaId = Number(req.params.id);
+  const { medioPagoId } = req.body || {};
+
+  if (!medioPagoId) {
+    throw new HttpError(400, "MEDIO_PAGO_REQUERIDO_BODY", "Falta medioPagoId en el body.");
+  }
+
+  const subasta = await Subastas.findById(subastaId);
+  if (!subasta) throw new HttpError(404, "SUBASTA_NO_ENCONTRADA", "La subasta no existe.");
+
+  const subastaExt = await SubastasExtension.findOne({ subasta: subastaId });
+  const monedaSubasta = subastaExt?.moneda || "ARS";
+
+  const medio = await MediosPagoModel.findById(medioPagoId);
+  if (!medio || medio.cliente !== req.user.sub) {
+    throw new HttpError(403, "MEDIO_PAGO_NO_ENCONTRADO", "El medio de pago no existe o no te pertenece.");
+  }
+  if (medio.verificado !== "si") {
+    throw new HttpError(403, "MEDIO_PAGO_NO_VERIFICADO", "El medio de pago no está verificado.");
+  }
+  if (medio.moneda !== monedaSubasta) {
+    throw new HttpError(409, "MEDIO_PAGO_MONEDA_INCORRECTA", `El medio de pago debe estar en ${monedaSubasta}.`);
+  }
+
+  const cliente = await Clientes.findById(req.user.sub);
+  let asistente = await Asistentes.findOne({ cliente: cliente.identificador, subasta: subastaId });
+  if (!asistente) {
+    const { data: maxRow } = await supabase
+      .from("asistentes")
+      .select("numero_postor")
+      .eq("subasta", subastaId)
+      .order("numero_postor", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    asistente = await Asistentes.create({
+      numero_postor: (maxRow?.numero_postor || 0) + 1,
+      cliente: cliente.identificador,
+      subasta: subastaId,
+    });
+  }
+
+  const ext = await AsistentesExtension.findOne({ asistente: asistente.identificador });
+  if (ext?.medio_pago) {
+    throw new HttpError(409, "MEDIO_PAGO_YA_DEFINIDO", "Ya elegiste un medio de pago para esta subasta y no puede cambiarse.");
+  }
+
+  if (ext) {
+    await AsistentesExtension.update(asistente.identificador, { medio_pago: Number(medioPagoId) });
+  } else {
+    await AsistentesExtension.create({
+      asistente: asistente.identificador,
+      estado_conexion: "desconectado",
+      medio_pago: Number(medioPagoId),
+    });
+  }
+
+  res.json({ ok: true });
+});
+
 // GET /subastas/:id/sala
 exports.ingresarSala = asyncHandler(async (req, res) => {
   const subastaId = Number(req.params.id);
@@ -256,6 +329,9 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
   if (!subasta || subasta.estado !== "abierta") {
     throw new HttpError(404, "SALA_NO_DISPONIBLE", "La subasta no existe o no está en vivo en este momento.");
   }
+
+  const subastaExt = await SubastasExtension.findOne({ subasta: subastaId });
+  const monedaSubasta = subastaExt?.moneda || "ARS";
 
   const cliente = await Clientes.findById(req.user.sub);
   if (!cliente) throw new HttpError(403, "USUARIO_NO_ENCONTRADO", "Usuario no encontrado.");
@@ -270,22 +346,7 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
     );
   }
 
-  // 2) Medio de pago verificado
-  const { count: verificados } = await supabase
-    .from("medios_pago")
-    .select("*", { count: "exact", head: true })
-    .eq("cliente", cliente.identificador)
-    .eq("verificado", "si");
-  if (!verificados) {
-    throw new HttpError(
-      403,
-      "SALA_SIN_MEDIO_PAGO",
-      "Necesitás tener al menos un medio de pago verificado para entrar a la subasta.",
-      { mediosPagoVerificados: 0 },
-    );
-  }
-
-  // 3) Multa pendiente
+  // 2) Multa pendiente
   const multaPend = await multaPendienteData(cliente.identificador);
   if (multaPend) {
     throw new HttpError(
@@ -296,15 +357,15 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
     );
   }
 
-  // 4) No estar conectado a otra subasta
+  // 3) No estar conectado a otra subasta
   const { data: misAsistencias } = await supabase
     .from("asistentes")
     .select("*")
     .eq("cliente", cliente.identificador);
   for (const a of misAsistencias || []) {
     if (a.subasta === subastaId) continue;
-    const ext = await AsistentesExtension.findOne({ asistente: a.identificador });
-    if (ext?.estado_conexion === "conectado") {
+    const extOtra = await AsistentesExtension.findOne({ asistente: a.identificador });
+    if (extOtra?.estado_conexion === "conectado") {
       const otra = await Subastas.findById(a.subasta);
       const otraExt = otra
         ? await SubastasExtension.findOne({ subasta: otra.identificador })
@@ -321,7 +382,6 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
   // 4) Buscar o crear asistente para esta subasta
   let asistente = (misAsistencias || []).find((a) => a.subasta === subastaId);
   if (!asistente) {
-    // Computar próximo numero_postor de la subasta
     const { data: maxRow } = await supabase
       .from("asistentes")
       .select("numero_postor")
@@ -337,20 +397,28 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
     });
   }
 
-  // 5) Marcar conectado en la extensión (upsert manual)
+  // 5) Verificar medio de pago fijado para esta subasta
   const ext = await AsistentesExtension.findOne({ asistente: asistente.identificador });
-  if (ext) {
-    await AsistentesExtension.update(asistente.identificador, { estado_conexion: "conectado" });
-  } else {
-    await AsistentesExtension.create({
-      asistente: asistente.identificador,
-      estado_conexion: "conectado",
-    });
+  if (!ext?.medio_pago) {
+    const { data: mediosCompatibles } = await supabase
+      .from("medios_pago")
+      .select("*")
+      .eq("cliente", cliente.identificador)
+      .eq("verificado", "si")
+      .eq("moneda", monedaSubasta);
+    throw new HttpError(
+      409,
+      "MEDIO_PAGO_REQUERIDO",
+      `Elegí el medio de pago que usarás en esta subasta (${monedaSubasta}).`,
+      { medios: (mediosCompatibles || []).map(medioPagoShape), moneda: monedaSubasta },
+    );
   }
 
-  // 6) Armar payload SalaEnVivo
+  // 6) Marcar conectado en la extensión
+  await AsistentesExtension.update(asistente.identificador, { estado_conexion: "conectado" });
+
+  // 7) Armar payload SalaEnVivo
   const piezaCur = await piezaEnSubasta(subastaId);
-  const subastaExt = await SubastasExtension.findOne({ subasta: subastaId });
   let piezaActual = null;
   if (piezaCur) {
     const producto = await Productos.findById(piezaCur.item.producto);
@@ -432,43 +500,6 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
       `El monto supera el máximo permitido de ${pujaMaxima}.`,
       { montoOfertado: monto, montoMaximo: pujaMaxima },
     );
-  }
-
-  // Validar límite del cheque certificado como garantía.
-  // Las compras no pagadas no pueden superar el monto del cheque.
-  const { data: cheque } = await supabase
-    .from("medios_pago")
-    .select("monto_cheque")
-    .eq("cliente", req.user.sub)
-    .eq("tipo", "cheque_certificado")
-    .eq("verificado", "si")
-    .limit(1)
-    .maybeSingle();
-  if (cheque) {
-    const montoCheque = Number(cheque.monto_cheque || 0);
-    const { data: regs } = await supabase
-      .from("registro_de_subasta")
-      .select("identificador, importe, comision")
-      .eq("cliente", req.user.sub);
-    let comprometido = 0;
-    for (const r of regs || []) {
-      const { data: ext } = await supabase
-        .from("registro_subasta_extension")
-        .select("estado_pago")
-        .eq("registro", r.identificador)
-        .maybeSingle();
-      if (!ext || ext.estado_pago !== "pagada") {
-        comprometido += Number(r.importe || 0) + Number(r.comision || 0);
-      }
-    }
-    if (comprometido + Number(monto) > montoCheque) {
-      throw new HttpError(
-        400,
-        "PUJA_FONDOS_CHEQUE_INSUFICIENTES",
-        "Tus compras superan el monto de tu cheque certificado. No podés seguir pujando con esta garantía.",
-        { montoCheque, montoComprometido: comprometido },
-      );
-    }
   }
 
   // Notificar al postor cuya puja va a ser superada

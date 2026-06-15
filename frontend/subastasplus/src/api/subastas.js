@@ -28,3 +28,7 @@ export async function realizarPuja(subastaId, monto) {
 export async function salirSala(subastaId) {
   await client.post(`/subastas/${subastaId}/sala/salir`);
 }
+
+export async function fijarMedioPagoSubasta(subastaId, medioPagoId) {
+  await client.post(`/subastas/${subastaId}/medio-pago`, { medioPagoId });
+}
