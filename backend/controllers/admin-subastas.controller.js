@@ -9,7 +9,10 @@ const ProductosExtension = require("../models/productos_extension");
 const Personas = require("../models/personas");
 const Asistentes = require("../models/asistentes");
 const RegistroDeSubasta = require("../models/registro_de_subasta");
+const RegistroSubastaExtension = require("../models/registro_subasta_extension");
 const HttpError = require("../lib/http-error");
+
+const EMPRESA_CLIENTE_ID = 1;
 const {
   subastaResumen,
   piezaResumen,
@@ -278,16 +281,32 @@ exports.cerrarItem = asyncHandler(async (req, res) => {
     .maybeSingle();
 
   if (!pujoGanador) {
-    await ItemsCatalogoEstado.update(itemId, { estado: "no_vendida" });
+    // Sin ganador: la empresa compra al precio base (consigna TPO)
+    const precioBase = Number(item.precio_base);
+    const productoSinGanador = await Productos.findById(item.producto);
+    const registroEmpresa = await RegistroDeSubasta.create({
+      cliente: EMPRESA_CLIENTE_ID,
+      duenio: productoSinGanador?.duenio ?? null,
+      subasta: subastaId,
+      producto: item.producto,
+      importe: precioBase,
+      comision: 0,
+    });
+    await RegistroSubastaExtension.create({
+      registro: registroEmpresa.identificador,
+      estado_pago: "pagada",
+      metodo_entrega: "retiro_personal",
+    });
+    await ItemsCatalogoEstado.update(itemId, { estado: "vendida" });
     realtime.broadcast(subastaId, {
       event: "pieza_cerrada",
       itemId: String(itemId),
       numeroItem: itemId,
-      ganadorClienteId: null,
-      montoGanador: null,
-      compraId: null,
+      ganadorClienteId: EMPRESA_CLIENTE_ID,
+      montoGanador: precioBase,
+      compraId: String(registroEmpresa.identificador),
     });
-    return res.json({ vendida: false, ganador: null });
+    return res.json({ vendida: true, ganador: null, compraEmpresa: true, monto: precioBase });
   }
 
   const asistente = await Asistentes.findById(pujoGanador.asistente);
