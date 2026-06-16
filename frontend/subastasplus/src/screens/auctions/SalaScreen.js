@@ -13,6 +13,8 @@ import {
   Alert,
   BackHandler,
   Platform,
+  Image,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../../constants/colors";
@@ -63,6 +65,8 @@ export default function SalaScreen({ navigation, route }) {
   const [piezaGanada, setPiezaGanada] = useState(null);
   const [compraId, setCompraId] = useState(null);
   const [montoGanadorAjeno, setMontoGanadorAjeno] = useState(null);
+  const [verFotos, setVerFotos] = useState(false);
+  const [fotoActiva, setFotoActiva] = useState(0);
 
   const sinMaximo = salaInicial.piezaActual?.pujaMaxima === null;
   // necesitamos el ref porque el handler del WebSocket captura el closure inicial y no ve updates del estado
@@ -121,6 +125,8 @@ export default function SalaScreen({ navigation, route }) {
               id: String(msg.numeroItem),
               numeroItem: msg.numeroItem,
               descripcion: msg.descripcion,
+              imagenPrincipal: msg.imagenPrincipal || null,
+              cantFotos: msg.cantFotos || 0,
               precioBase,
               mejorOferta,
               pujaMinima: nuevaMinima,
@@ -178,6 +184,9 @@ export default function SalaScreen({ navigation, route }) {
       await realizarPuja(subastaId, montoNum);
       setMiUltimaMonto(montoNum);
       setUiState("registrada");
+      setTimeout(() => {
+        setUiState((cur) => (cur === "registrada" ? "sala" : cur));
+      }, 3000);
     } catch (error) {
       setUiState("sala");
       Alert.alert(
@@ -240,22 +249,38 @@ export default function SalaScreen({ navigation, route }) {
               </View>
             </View>
 
-            <View style={styles.pujasSeccion}>
-              <Text style={styles.pujasLabel}>Últimas pujas</Text>
-              <FlatList
-                data={pieza.ultimasPujas}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPuja}
-                scrollEnabled={false}
-              />
-            </View>
-
             <TouchableOpacity style={styles.streamingBoton}>
               <Text style={styles.streamingTexto}>Streaming</Text>
             </TouchableOpacity>
 
-            <View style={styles.imagenPlaceholder}>
-              <Text style={styles.imagenTexto}>imagen</Text>
+            <TouchableOpacity
+              activeOpacity={pieza.imagenPrincipal ? 0.85 : 1}
+              onPress={() => {
+                if (pieza.imagenPrincipal) {
+                  setFotoActiva(0);
+                  setVerFotos(true);
+                }
+              }}
+            >
+              {pieza.imagenPrincipal ? (
+                <Image
+                  source={{ uri: `${SERVER_URL}${pieza.imagenPrincipal}` }}
+                  style={styles.imagenPlaceholder}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.imagenPlaceholder} />
+              )}
+            </TouchableOpacity>
+
+            <View style={styles.pujasSeccion}>
+              <Text style={styles.pujasLabel}>Últimas pujas</Text>
+              <FlatList
+                data={[...pieza.ultimasPujas].sort((a, b) => b.monto - a.monto)}
+                keyExtractor={(item) => item.id}
+                renderItem={renderPuja}
+                scrollEnabled={false}
+              />
             </View>
           </ScrollView>
 
@@ -402,6 +427,53 @@ export default function SalaScreen({ navigation, route }) {
           <TouchableOpacity style={styles.perdedorBoton} onPress={handleSalir}>
             <Text style={styles.perdedorBotonTexto}>Salir</Text>
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* ── Visor de fotos ── */}
+      <Modal visible={verFotos} transparent animationType="fade" onRequestClose={() => setVerFotos(false)}>
+        <View style={styles.fotosOverlay}>
+          <TouchableOpacity style={styles.fotosCerrar} onPress={() => setVerFotos(false)}>
+            <Text style={styles.fotosCerrarTexto}>✕</Text>
+          </TouchableOpacity>
+          {pieza && pieza.cantFotos > 0 && (
+            <>
+              <FlatList
+                data={Array.from({ length: pieza.cantFotos }, (_, i) => i)}
+                keyExtractor={(i) => String(i)}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                initialScrollIndex={fotoActiva}
+                getItemLayout={(_, index) => ({
+                  length: Dimensions.get("window").width,
+                  offset: Dimensions.get("window").width * index,
+                  index,
+                })}
+                onMomentumScrollEnd={(e) => {
+                  const index = Math.round(
+                    e.nativeEvent.contentOffset.x / Dimensions.get("window").width
+                  );
+                  setFotoActiva(index);
+                }}
+                renderItem={({ item: idx }) => (
+                  <Image
+                    source={{ uri: `${SERVER_URL}/v1/piezas/${pieza.numeroItem}/fotos/${idx}` }}
+                    style={{ width: Dimensions.get("window").width, height: Dimensions.get("window").height * 0.75 }}
+                    resizeMode="contain"
+                  />
+                )}
+              />
+              {pieza.cantFotos > 1 && (
+                <View style={styles.fotosDots}>
+                  {Array.from({ length: pieza.cantFotos }, (_, i) => (
+                    <View key={i} style={[styles.fotosDot, i === fotoActiva && styles.fotosDotActivo]} />
+                  ))}
+                </View>
+              )}
+              <Text style={styles.fotosContador}>{fotoActiva + 1} / {pieza.cantFotos}</Text>
+            </>
+          )}
         </View>
       </Modal>
 
@@ -654,4 +726,35 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   ganadorBotonTexto: { ...typography.button, color: SALA.texto },
+  fotosOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fotosCerrar: {
+    position: "absolute",
+    top: 52,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  fotosCerrarTexto: { fontSize: 22, color: "#fff", fontWeight: "700" },
+  fotosDots: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 16,
+  },
+  fotosDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+  fotosDotActivo: { backgroundColor: "#fff" },
+  fotosContador: {
+    marginTop: 10,
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 13,
+  },
 });

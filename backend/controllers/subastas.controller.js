@@ -421,7 +421,11 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
   const piezaCur = await piezaEnSubasta(subastaId);
   let piezaActual = null;
   if (piezaCur) {
-    const producto = await Productos.findById(piezaCur.item.producto);
+    const [producto, fotosResult] = await Promise.all([
+      Productos.findById(piezaCur.item.producto),
+      supabase.from("fotos").select("*", { count: "exact", head: true }).eq("producto", piezaCur.item.producto),
+    ]);
+    const cantFotos = fotosResult.count || 0;
     const valorBase = Number(piezaCur.item.precio_base);
     const mejor = Number(piezaCur.estado.mejor_oferta || piezaCur.item.precio_base);
     const pujaMinima = Number((mejor + valorBase * 0.01).toFixed(2));
@@ -432,7 +436,8 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
       id: String(piezaCur.item.identificador),
       numeroItem: piezaCur.item.identificador,
       descripcion: producto?.descripcion_catalogo || producto?.descripcion_completa || "",
-      imagenPrincipal: null,
+      imagenPrincipal: cantFotos > 0 ? `/v1/piezas/${piezaCur.item.identificador}/fotos/0` : null,
+      cantFotos,
       precioBase: valorBase,
       mejorOferta: mejor,
       pujaMinima,

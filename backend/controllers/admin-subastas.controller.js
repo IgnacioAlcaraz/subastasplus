@@ -239,13 +239,19 @@ exports.activarItem = asyncHandler(async (req, res) => {
 
   await ItemsCatalogoEstado.update(itemId, { estado: "en_subasta", mejor_oferta: null });
 
-  const producto = await Productos.findById(item.producto);
+  const [producto, fotosResult] = await Promise.all([
+    Productos.findById(item.producto),
+    supabase.from("fotos").select("*", { count: "exact", head: true }).eq("producto", item.producto),
+  ]);
+  const cantFotos = fotosResult.count || 0;
   const precioBase = Number(item.precio_base);
 
   realtime.broadcast(subastaId, {
     event: "pieza_nueva",
     numeroItem: itemId,
     descripcion: producto?.descripcion_catalogo || producto?.descripcion_completa || "",
+    imagenPrincipal: cantFotos > 0 ? `/v1/piezas/${itemId}/fotos/0` : null,
+    cantFotos,
     precioBase,
     mejorOferta: precioBase,
   });
