@@ -67,6 +67,19 @@ export default function SalaScreen({ navigation, route }) {
   const [montoGanadorAjeno, setMontoGanadorAjeno] = useState(null);
   const [verFotos, setVerFotos] = useState(false);
   const [fotoActiva, setFotoActiva] = useState(0);
+  const [expiryAt, setExpiryAt] = useState(salaInicial.piezaActual?.expiryAt || null);
+  const [segundosRestantes, setSegundosRestantes] = useState(null);
+
+  // Countdown: ticks cada segundo usando el timestamp absoluto del servidor
+  useEffect(() => {
+    if (!expiryAt) { setSegundosRestantes(null); return; }
+    function tick() {
+      setSegundosRestantes(Math.max(0, Math.round((new Date(expiryAt).getTime() - Date.now()) / 1000)));
+    }
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [expiryAt]);
 
   const sinMaximo = salaInicial.piezaActual?.pujaMaxima === null;
   // necesitamos el ref porque el handler del WebSocket captura el closure inicial y no ve updates del estado
@@ -134,10 +147,17 @@ export default function SalaScreen({ navigation, route }) {
               ultimasPujas: [],
             },
           }));
+          setExpiryAt(msg.expiryAt || null);
           setMonto(String(nuevaMinima));
           if (!["ganador", "perdedor"].includes(uiStateRef.current)) {
             setUiState("sala");
           }
+        }
+        if (msg.event === "puja_nueva") {
+          if (msg.expiryAt) setExpiryAt(msg.expiryAt);
+        }
+        if (msg.event === "subasta_cerrada") {
+          setUiState("subastaCerrada");
         }
         if (msg.event === "pieza_cerrada") {
           // comparamos con el id del usuario para saber si ganamos o perdimos la pieza
@@ -247,6 +267,18 @@ export default function SalaScreen({ navigation, route }) {
                   </Text>
                 </Text>
               </View>
+              {segundosRestantes !== null && (
+                <View style={styles.contadorRow}>
+                  <Text style={[
+                    styles.contadorTexto,
+                    segundosRestantes <= 10 && styles.contadorUrgente,
+                  ]}>
+                    {segundosRestantes === 0
+                      ? "Cerrando..."
+                      : `⏱ ${segundosRestantes}s`}
+                  </Text>
+                </View>
+              )}
             </View>
 
             <TouchableOpacity style={styles.streamingBoton}>
@@ -426,6 +458,20 @@ export default function SalaScreen({ navigation, route }) {
           )}
           <TouchableOpacity style={styles.perdedorBoton} onPress={handleSalir}>
             <Text style={styles.perdedorBotonTexto}>Salir</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* ── Overlay: Subasta cerrada ── */}
+      <Modal visible={uiState === "subastaCerrada"} transparent animationType="fade">
+        <View style={styles.overlayOscuro}>
+          <Text style={styles.overlayTitulo}>La subasta finalizó</Text>
+          <Text style={styles.overlayTexto}>Gracias por participar</Text>
+          <TouchableOpacity
+            style={[styles.ganadorBoton, { marginTop: 24 }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.ganadorBotonTexto}>Volver</Text>
           </TouchableOpacity>
         </View>
       </Modal>
@@ -726,6 +772,22 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   ganadorBotonTexto: { ...typography.button, color: SALA.texto },
+  contadorRow: {
+    marginTop: 10,
+    alignSelf: "flex-start",
+    backgroundColor: SALA.surface,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: SALA.borde,
+  },
+  contadorTexto: {
+    ...typography.caption,
+    color: SALA.textoSec,
+    fontVariant: ["tabular-nums"],
+  },
+  contadorUrgente: { color: "#FF4D4D", fontWeight: "700" },
   fotosOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.95)",

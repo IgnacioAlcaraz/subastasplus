@@ -25,6 +25,11 @@ var server = http.createServer(app);
 // WebSocket: salas en vivo
 attachRealtime(server);
 
+// Recuperar timers de ítems que quedaron activos antes de un reinicio
+const { recuperarTimers } = require('../lib/item-timer');
+const { ejecutarCierreItem } = require('../controllers/admin-subastas.controller');
+recuperarTimers(ejecutarCierreItem);
+
 /**
  * Listen on provided port, on all network interfaces.
  */

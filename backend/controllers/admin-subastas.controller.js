@@ -23,9 +23,11 @@ const {
 const { cantidadPiezasDeSubasta, piezaEnSubasta } = require("../lib/subastas-helper");
 const realtime = require("../lib/realtime");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
+const itemTimer = require("../lib/item-timer");
 
 const CATEGORIAS_VALIDAS = ["comun", "especial", "plata", "oro", "platino"];
 const MONEDAS_VALIDAS = ["ARS", "USD"];
+const DURACION_INICIAL_MS = 120_000; // 2 minutos — tiempo para primera puja
 
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
@@ -212,6 +214,92 @@ exports.agregarItem = asyncHandler(async (req, res) => {
   res.status(201).json(piezaResumen({ item, producto, prodExt, estadoItem, precioVisible: true }));
 });
 
+// Lógica de cierre de ítem — usada por el endpoint manual, el timer automático y realizarPuja
+async function ejecutarCierreItem(subastaId, itemId) {
+  const item = await ItemsCatalogo.findById(itemId);
+  if (!item) return;
+
+  const estadoItem = await ItemsCatalogoEstado.findOne({ item: itemId });
+  if (!estadoItem || estadoItem.estado !== "en_subasta") return;
+
+  const { data: pujoGanador } = await supabase
+    .from("pujos")
+    .select("*")
+    .eq("item", itemId)
+    .eq("ganador", "si")
+    .maybeSingle();
+
+  if (!pujoGanador) {
+    const precioBase = Number(item.precio_base);
+    const producto = await Productos.findById(item.producto);
+    const registroEmpresa = await RegistroDeSubasta.create({
+      cliente: EMPRESA_CLIENTE_ID,
+      duenio: producto?.duenio ?? null,
+      subasta: subastaId,
+      producto: item.producto,
+      importe: precioBase,
+      comision: 0,
+    });
+    await RegistroSubastaExtension.create({
+      registro: registroEmpresa.identificador,
+      estado_pago: "pagada",
+      metodo_entrega: "retiro_personal",
+    });
+    await ItemsCatalogoEstado.update(itemId, { estado: "vendida", expiry_at: null });
+    realtime.broadcast(subastaId, {
+      event: "pieza_cerrada",
+      itemId: String(itemId),
+      numeroItem: itemId,
+      ganadorClienteId: EMPRESA_CLIENTE_ID,
+      montoGanador: precioBase,
+      compraId: String(registroEmpresa.identificador),
+    });
+    return { vendida: true, ganador: null, compraEmpresa: true, monto: precioBase };
+  }
+
+  const asistente = await Asistentes.findById(pujoGanador.asistente);
+  if (!asistente) throw new Error("No se encontró el asistente del postor ganador.");
+
+  const clienteGanadorId = asistente.cliente;
+  const montoGanador = Number(pujoGanador.importe);
+  const comision = Math.round(montoGanador * 0.1);
+  const producto = await Productos.findById(item.producto);
+
+  const registro = await RegistroDeSubasta.create({
+    cliente: clienteGanadorId,
+    duenio: producto?.duenio ?? null,
+    subasta: subastaId,
+    producto: item.producto,
+    importe: montoGanador,
+    comision,
+  });
+
+  await ItemsCatalogoEstado.update(itemId, { estado: "vendida", expiry_at: null });
+
+  await crearNotificacion(clienteGanadorId, {
+    tipo: "puja_ganada",
+    titulo: "¡Ganaste la subasta!",
+    mensaje: `Ganaste la pieza #${itemId} por $${montoGanador}. Procedé al pago para completar tu compra.`,
+    accionUrl: `/compras/${registro.identificador}`,
+  });
+
+  realtime.broadcast(subastaId, {
+    event: "pieza_cerrada",
+    itemId: String(itemId),
+    numeroItem: itemId,
+    ganadorClienteId: clienteGanadorId,
+    montoGanador,
+    compraId: String(registro.identificador),
+  });
+
+  return {
+    vendida: true,
+    compraId: String(registro.identificador),
+    ganadorClienteId: clienteGanadorId,
+    montoGanador,
+  };
+}
+
 // POST /admin/subastas/:id/items/:itemId/activar
 exports.activarItem = asyncHandler(async (req, res) => {
   const subastaId = Number(req.params.id);
@@ -237,7 +325,8 @@ exports.activarItem = asyncHandler(async (req, res) => {
     throw new HttpError(409, "SUBASTA_PIEZA_YA_ACTIVA", "Ya hay una pieza activa en esta subasta. Cerrala antes de activar la siguiente.");
   }
 
-  await ItemsCatalogoEstado.update(itemId, { estado: "en_subasta", mejor_oferta: null });
+  const expiryAt = new Date(Date.now() + DURACION_INICIAL_MS).toISOString();
+  await ItemsCatalogoEstado.update(itemId, { estado: "en_subasta", mejor_oferta: null, expiry_at: expiryAt });
 
   const [producto, fotosResult] = await Promise.all([
     Productos.findById(item.producto),
@@ -245,6 +334,8 @@ exports.activarItem = asyncHandler(async (req, res) => {
   ]);
   const cantFotos = fotosResult.count || 0;
   const precioBase = Number(item.precio_base);
+
+  itemTimer.set(itemId, subastaId, expiryAt, ejecutarCierreItem);
 
   realtime.broadcast(subastaId, {
     event: "pieza_nueva",
@@ -254,9 +345,10 @@ exports.activarItem = asyncHandler(async (req, res) => {
     cantFotos,
     precioBase,
     mejorOferta: precioBase,
+    expiryAt,
   });
 
-  res.json({ activado: true, itemId });
+  res.json({ activado: true, itemId, expiryAt });
 });
 
 // POST /admin/subastas/:id/items/:itemId/cerrar
@@ -268,95 +360,37 @@ exports.cerrarItem = asyncHandler(async (req, res) => {
   if (!subasta || subasta.estado !== "abierta") {
     throw new HttpError(404, "SUBASTA_NO_DISPONIBLE", "La subasta no existe o no está en curso.");
   }
-
-  const item = await ItemsCatalogo.findById(itemId);
-  if (!item) {
-    throw new HttpError(404, "ITEM_NO_ENCONTRADO", "El ítem no existe en el catálogo.");
-  }
-
   const estadoItem = await ItemsCatalogoEstado.findOne({ item: itemId });
   if (!estadoItem || estadoItem.estado !== "en_subasta") {
     throw new HttpError(409, "ITEM_NO_EN_SUBASTA", "El ítem no está activo en subasta en este momento.");
   }
 
-  const { data: pujoGanador } = await supabase
-    .from("pujos")
-    .select("*")
-    .eq("item", itemId)
-    .eq("ganador", "si")
-    .maybeSingle();
+  itemTimer.cancel(itemId);
+  const result = await ejecutarCierreItem(subastaId, itemId);
+  if (!result) throw new HttpError(404, "ITEM_NO_ENCONTRADO", "El ítem no existe en el catálogo.");
 
-  if (!pujoGanador) {
-    // Sin ganador: la empresa compra al precio base (consigna TPO)
-    const precioBase = Number(item.precio_base);
-    const productoSinGanador = await Productos.findById(item.producto);
-    const registroEmpresa = await RegistroDeSubasta.create({
-      cliente: EMPRESA_CLIENTE_ID,
-      duenio: productoSinGanador?.duenio ?? null,
-      subasta: subastaId,
-      producto: item.producto,
-      importe: precioBase,
-      comision: 0,
-    });
-    await RegistroSubastaExtension.create({
-      registro: registroEmpresa.identificador,
-      estado_pago: "pagada",
-      metodo_entrega: "retiro_personal",
-    });
-    await ItemsCatalogoEstado.update(itemId, { estado: "vendida" });
-    realtime.broadcast(subastaId, {
-      event: "pieza_cerrada",
-      itemId: String(itemId),
-      numeroItem: itemId,
-      ganadorClienteId: EMPRESA_CLIENTE_ID,
-      montoGanador: precioBase,
-      compraId: String(registroEmpresa.identificador),
-    });
-    return res.json({ vendida: true, ganador: null, compraEmpresa: true, monto: precioBase });
-  }
-
-  const asistente = await Asistentes.findById(pujoGanador.asistente);
-  if (!asistente) {
-    throw new HttpError(500, "ERROR_INTERNO", "No se encontró el asistente del postor ganador.");
-  }
-
-  const clienteGanadorId = asistente.cliente;
-  const montoGanador = Number(pujoGanador.importe);
-  const comision = Math.round(montoGanador * 0.1);
-
-  const producto = await Productos.findById(item.producto);
-
-  const registro = await RegistroDeSubasta.create({
-    cliente: clienteGanadorId,
-    duenio: producto?.duenio ?? null,
-    subasta: subastaId,
-    producto: item.producto,
-    importe: montoGanador,
-    comision,
-  });
-
-  await ItemsCatalogoEstado.update(itemId, { estado: "vendida" });
-
-  await crearNotificacion(clienteGanadorId, {
-    tipo: "puja_ganada",
-    titulo: "¡Ganaste la subasta!",
-    mensaje: `Ganaste la pieza #${itemId} por $${montoGanador}. Procedé al pago para completar tu compra.`,
-    accionUrl: `/compras/${registro.identificador}`,
-  });
-
-  realtime.broadcast(subastaId, {
-    event: "pieza_cerrada",
-    itemId: String(itemId),
-    numeroItem: itemId,
-    ganadorClienteId: clienteGanadorId,
-    montoGanador,
-    compraId: String(registro.identificador),
-  });
-
-  res.status(201).json({
-    vendida: true,
-    compraId: String(registro.identificador),
-    ganadorClienteId: clienteGanadorId,
-    montoGanador,
-  });
+  const status = result.compraEmpresa ? 200 : 201;
+  res.status(status).json(result);
 });
+
+// POST /admin/subastas/:id/cerrar
+exports.cerrarSubasta = asyncHandler(async (req, res) => {
+  const subastaId = Number(req.params.id);
+
+  const subasta = await Subastas.findById(subastaId);
+  if (!subasta) throw new HttpError(404, "SUBASTA_NO_ENCONTRADA", "La subasta no existe.");
+  if (subasta.estado === "cerrada") throw new HttpError(409, "SUBASTA_YA_CERRADA", "La subasta ya está cerrada.");
+
+  const piezaActiva = await piezaEnSubasta(subastaId);
+  if (piezaActiva) {
+    throw new HttpError(409, "SUBASTA_PIEZA_ACTIVA", "Hay una pieza en subasta activa. Cerrala antes de cerrar la subasta.");
+  }
+
+  await Subastas.update(subastaId, { estado: "cerrada" });
+
+  realtime.broadcast(subastaId, { event: "subasta_cerrada", subastaId: String(subastaId) });
+
+  res.json({ cerrada: true, subastaId: String(subastaId) });
+});
+
+exports.ejecutarCierreItem = ejecutarCierreItem;

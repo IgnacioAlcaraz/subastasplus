@@ -236,6 +236,9 @@ const { puedeEntrarPorCategoria, pujaSinMaximo } = require("../lib/categoria");
 const { medioPagoShape } = require("../lib/medio-pago-shape");
 const realtime = require("../lib/realtime");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
+const itemTimer = require("../lib/item-timer");
+const { ejecutarCierreItem } = require("./admin-subastas.controller");
+const DURACION_PUJA_MS = 30_000;
 const { multaPendienteData } = require("../lib/multas-helper");
 
 
@@ -438,6 +441,7 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
       descripcion: producto?.descripcion_catalogo || producto?.descripcion_completa || "",
       imagenPrincipal: cantFotos > 0 ? `/v1/piezas/${piezaCur.item.identificador}/fotos/0` : null,
       cantFotos,
+      expiryAt: piezaCur.estado.expiry_at || null,
       precioBase: valorBase,
       mejorOferta: mejor,
       pujaMinima,
@@ -544,8 +548,10 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
   const timestamp = new Date().toISOString();
   await PujosExtension.create({ pujo: pujo.identificador, timestamp });
 
-  // Actualizar mejor_oferta en la pieza
-  await ItemsCatalogoEstado.update(piezaCur.item.identificador, { mejor_oferta: monto });
+  // Resetear timer y actualizar mejor_oferta + expiry_at
+  const expiryAt = new Date(Date.now() + DURACION_PUJA_MS).toISOString();
+  await ItemsCatalogoEstado.update(piezaCur.item.identificador, { mejor_oferta: monto, expiry_at: expiryAt });
+  itemTimer.set(piezaCur.item.identificador, subastaId, expiryAt, ejecutarCierreItem);
 
   // Broadcast a la sala
   realtime.broadcast(subastaId, {
@@ -557,6 +563,7 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
       timestamp,
     },
     mejorOferta: Number(monto),
+    expiryAt,
   });
 
   res.status(201).json({

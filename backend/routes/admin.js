@@ -35,5 +35,6 @@ router.put("/subastas/:id", subastasCtrl.actualizar);
 router.post("/subastas/:id/items", subastasCtrl.agregarItem);
 router.post("/subastas/:id/items/:itemId/activar", subastasCtrl.activarItem);
 router.post("/subastas/:id/items/:itemId/cerrar", subastasCtrl.cerrarItem);
+router.post("/subastas/:id/cerrar", subastasCtrl.cerrarSubasta);
 
 module.exports = router;
