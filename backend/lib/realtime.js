@@ -1,6 +1,7 @@
 const url = require("url");
 const WebSocket = require("ws");
 const tokens = require("./tokens");
+const supabase = require("../supabase-client");
 
 // Map<subastaId, Set<WebSocket>>
 const rooms = new Map();
@@ -67,9 +68,23 @@ function attachRealtime(server) {
       );
       broadcast(subastaId, { event: "conectados", count: roomSize(subastaId) });
 
-      ws.on("close", () => {
+      ws.on("close", async () => {
         leaveRoom(subastaId, ws);
         broadcast(subastaId, { event: "conectados", count: roomSize(subastaId) });
+        try {
+          const { data: asistente } = await supabase
+            .from("asistentes")
+            .select("identificador")
+            .eq("cliente", ws.userSub)
+            .eq("subasta", subastaId)
+            .maybeSingle();
+          if (asistente) {
+            await supabase
+              .from("asistentes_extension")
+              .update({ estado_conexion: "desconectado" })
+              .eq("asistente", asistente.identificador);
+          }
+        } catch (_) {}
       });
       ws.on("error", () => leaveRoom(subastaId, ws));
     });

@@ -69,6 +69,7 @@ export default function SalaScreen({ navigation, route }) {
   const [fotoActiva, setFotoActiva] = useState(0);
   const [expiryAt, setExpiryAt] = useState(salaInicial.piezaActual?.expiryAt || null);
   const [segundosRestantes, setSegundosRestantes] = useState(null);
+  const [wsConectado, setWsConectado] = useState(true);
 
   // Countdown: ticks cada segundo usando el timestamp absoluto del servidor
   useEffect(() => {
@@ -81,104 +82,127 @@ export default function SalaScreen({ navigation, route }) {
     return () => clearInterval(interval);
   }, [expiryAt]);
 
-  const sinMaximo = salaInicial.piezaActual?.pujaMaxima === null;
-  // necesitamos el ref porque el handler del WebSocket captura el closure inicial y no ve updates del estado
+  // ref para saber si la pieza actual tiene máximo — evita que el closure del WS quede congelado
+  const sinMaximoRef = useRef(salaInicial.piezaActual?.pujaMaxima === null);
   const uiStateRef = useRef(uiState);
   useEffect(() => {
     uiStateRef.current = uiState;
   }, [uiState]);
 
+  const wsClosedManuallyRef = useRef(false);
+  const reconnectTimerRef = useRef(null);
+  const reconnectAttemptsRef = useRef(0);
+  const MAX_RECONNECT = 5;
+
   useEffect(() => {
     if (!token) return;
-    // convertimos el URL de http a ws para la conexión en tiempo real
-    const wsUrl =
-      SERVER_URL.replace(/^http/, "ws") +
-      `/v1/realtime/subastas/${subastaId}?token=${token}`;
-    const ws = new WebSocket(wsUrl);
+    wsClosedManuallyRef.current = false;
+    reconnectAttemptsRef.current = 0;
 
-    ws.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.event === "puja_nueva") {
-          // actualizamos la sala con la nueva oferta y recalculamos los límites de puja
-          setSala((prev) => {
-            if (!prev.piezaActual) return prev;
-            const nuevaMinima = Number(
-              (msg.mejorOferta + prev.piezaActual.precioBase * 0.01).toFixed(2)
-            );
-            const nuevaMaxima = sinMaximo
-              ? null
-              : Number(
-                  (msg.mejorOferta + prev.piezaActual.precioBase * 0.2).toFixed(2)
-                );
-            return {
+    function connect() {
+      const wsUrl =
+        SERVER_URL.replace(/^http/, "ws") +
+        `/v1/realtime/subastas/${subastaId}?token=${token}`;
+      const ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        setWsConectado(true);
+        reconnectAttemptsRef.current = 0;
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.event === "puja_nueva") {
+            setSala((prev) => {
+              if (!prev.piezaActual) return prev;
+              const nuevaMinima = Number(
+                (msg.mejorOferta + prev.piezaActual.precioBase * 0.01).toFixed(2)
+              );
+              const nuevaMaxima = sinMaximoRef.current
+                ? null
+                : Number(
+                    (msg.mejorOferta + prev.piezaActual.precioBase * 0.2).toFixed(2)
+                  );
+              return {
+                ...prev,
+                piezaActual: {
+                  ...prev.piezaActual,
+                  mejorOferta: msg.mejorOferta,
+                  pujaMinima: nuevaMinima,
+                  pujaMaxima: nuevaMaxima,
+                  ultimasPujas: [msg.pujo, ...prev.piezaActual.ultimasPujas].slice(0, 10),
+                },
+              };
+            });
+            if (msg.expiryAt) setExpiryAt(msg.expiryAt);
+            if (uiStateRef.current === "registrada") {
+              setMejorNueva(msg.mejorOferta);
+              setUiState("superada");
+            }
+          }
+          if (msg.event === "pieza_nueva") {
+            sinMaximoRef.current = msg.pujaMaxima === null;
+            const precioBase = msg.precioBase;
+            const mejorOferta = msg.mejorOferta;
+            const nuevaMinima = Number((mejorOferta + precioBase * 0.01).toFixed(2));
+            const nuevaMaxima = sinMaximoRef.current ? null : Number((mejorOferta + precioBase * 0.2).toFixed(2));
+            setSala((prev) => ({
               ...prev,
               piezaActual: {
-                ...prev.piezaActual,
-                mejorOferta: msg.mejorOferta,
+                id: String(msg.numeroItem),
+                numeroItem: msg.numeroItem,
+                descripcion: msg.descripcion,
+                imagenPrincipal: msg.imagenPrincipal || null,
+                cantFotos: msg.cantFotos || 0,
+                precioBase,
+                mejorOferta,
                 pujaMinima: nuevaMinima,
                 pujaMaxima: nuevaMaxima,
-                ultimasPujas: [msg.pujo, ...prev.piezaActual.ultimasPujas].slice(0, 10),
+                ultimasPujas: [],
               },
-            };
-          });
-          if (uiStateRef.current === "registrada") {
-            setMejorNueva(msg.mejorOferta);
-            setUiState("superada");
+            }));
+            setExpiryAt(msg.expiryAt || null);
+            setMonto(String(nuevaMinima));
+            if (!["ganador", "perdedor"].includes(uiStateRef.current)) {
+              setUiState("sala");
+            }
           }
-        }
-        if (msg.event === "pieza_nueva") {
-          const precioBase = msg.precioBase;
-          const mejorOferta = msg.mejorOferta;
-          const nuevaMinima = Number((mejorOferta + precioBase * 0.01).toFixed(2));
-          const nuevaMaxima = sinMaximo ? null : Number((mejorOferta + precioBase * 0.2).toFixed(2));
-          setSala((prev) => ({
-            ...prev,
-            piezaActual: {
-              id: String(msg.numeroItem),
-              numeroItem: msg.numeroItem,
-              descripcion: msg.descripcion,
-              imagenPrincipal: msg.imagenPrincipal || null,
-              cantFotos: msg.cantFotos || 0,
-              precioBase,
-              mejorOferta,
-              pujaMinima: nuevaMinima,
-              pujaMaxima: nuevaMaxima,
-              ultimasPujas: [],
-            },
-          }));
-          setExpiryAt(msg.expiryAt || null);
-          setMonto(String(nuevaMinima));
-          if (!["ganador", "perdedor"].includes(uiStateRef.current)) {
-            setUiState("sala");
+          if (msg.event === "subasta_cerrada") {
+            setUiState("subastaCerrada");
           }
-        }
-        if (msg.event === "puja_nueva") {
-          if (msg.expiryAt) setExpiryAt(msg.expiryAt);
-        }
-        if (msg.event === "subasta_cerrada") {
-          setUiState("subastaCerrada");
-        }
-        if (msg.event === "pieza_cerrada") {
-          // comparamos con el id del usuario para saber si ganamos o perdimos la pieza
-          if (msg.ganadorClienteId && String(msg.ganadorClienteId) === user?.id) {
-            setPiezaGanada({ numeroItem: msg.numeroItem, montoGanador: msg.montoGanador });
-            setCompraId(msg.compraId);
-            setUiState("ganador");
-          } else {
-            setMontoGanadorAjeno(msg.montoGanador);
-            setUiState("perdedor");
+          if (msg.event === "pieza_cerrada") {
+            if (msg.ganadorClienteId && String(msg.ganadorClienteId) === user?.id) {
+              setPiezaGanada({ numeroItem: msg.numeroItem, montoGanador: msg.montoGanador });
+              setCompraId(msg.compraId);
+              setUiState("ganador");
+            } else {
+              setMontoGanadorAjeno(msg.montoGanador);
+              setUiState("perdedor");
+            }
           }
-        }
-      } catch (_) {}
-    };
+        } catch (_) {}
+      };
 
-    ws.onerror = () => {};
+      ws.onerror = () => {};
+
+      ws.onclose = () => {
+        if (wsClosedManuallyRef.current) return;
+        if (reconnectAttemptsRef.current < MAX_RECONNECT) {
+          reconnectAttemptsRef.current += 1;
+          setWsConectado(false);
+          reconnectTimerRef.current = setTimeout(connect, 3000);
+        }
+      };
+    }
+
+    connect();
 
     return () => {
-      ws.close();
+      wsClosedManuallyRef.current = true;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
     };
-  }, [subastaId, token, sinMaximo]);
+  }, [subastaId, token]);
 
   const handleSalir = useCallback(async () => {
     try {
@@ -237,6 +261,11 @@ export default function SalaScreen({ navigation, route }) {
           <Text style={styles.backTexto}>← {titulo}</Text>
         </TouchableOpacity>
       </View>
+      {!wsConectado && (
+        <View style={styles.reconectandoBanner}>
+          <Text style={styles.reconectandoTexto}>Reconectando...</Text>
+        </View>
+      )}
 
       {!pieza ? (
         <View style={styles.esperando}>
@@ -538,13 +567,16 @@ export default function SalaScreen({ navigation, route }) {
           </Text>
           <TouchableOpacity
             style={styles.ganadorBoton}
-            onPress={() =>
+            onPress={async () => {
+              setUiState("idle");
+              wsClosedManuallyRef.current = true;
+              try { await salirSala(subastaId); } catch (_) {}
               navigation.navigate("FacturaCompra", {
                 compraId,
                 moneda,
                 numeroItem: piezaGanada?.numeroItem,
-              })
-            }
+              });
+            }}
           >
             <Text style={styles.ganadorBotonTexto}>Proceder al pago</Text>
           </TouchableOpacity>
@@ -788,6 +820,12 @@ const styles = StyleSheet.create({
     fontVariant: ["tabular-nums"],
   },
   contadorUrgente: { color: "#FF4D4D", fontWeight: "700" },
+  reconectandoBanner: {
+    backgroundColor: "#7A3A00",
+    paddingVertical: 6,
+    alignItems: "center",
+  },
+  reconectandoTexto: { ...typography.caption, color: "#FFD580" },
   fotosOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.95)",

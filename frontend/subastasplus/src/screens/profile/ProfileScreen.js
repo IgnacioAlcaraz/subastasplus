@@ -4,7 +4,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { colors, typography } from '../../constants';
 import { useAuth } from '../../context/AuthContext';
 import { getPerfil, subirFotoPerfil } from '../../api/perfil';
-import client, { esErrorServidor } from '../../api/client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import client, { esErrorServidor, SERVER_URL } from '../../api/client';
 import Button from '../../components/common/Button';
 import ProfileMenuItem from '../../components/common/ProfileMenuItem';
 import ConfirmModal from '../../components/common/ConfirmModal';
@@ -31,13 +32,18 @@ export default function ProfileScreen({ navigation }) {
 
   async function cargarFoto() {
     try {
-      const response = await client.get('/perfil/foto', { responseType: 'arraybuffer' });
-      const bytes = new Uint8Array(response.data);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      setFotoUri(`data:image/jpeg;base64,${btoa(binary)}`);
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${SERVER_URL}/v1/perfil/foto`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error();
+      const blob = await response.blob();
+      await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => { setFotoUri(reader.result); resolve(); };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
       setFotoError(false);
     } catch {
       setFotoError(true);

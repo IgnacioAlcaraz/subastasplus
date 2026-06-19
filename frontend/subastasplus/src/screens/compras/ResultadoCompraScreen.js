@@ -20,6 +20,13 @@ const CONTENT = {
     boton: 'Volver al Menu',
     botonOscuro: true,
   },
+  error_pago: {
+    icono: '!',
+    titulo: 'Error al procesar\nel pago',
+    subtitulo: 'Ocurrió un error inesperado. Intentá nuevamente desde tu historial de compras.',
+    boton: 'Volver al Menu',
+    botonOscuro: true,
+  },
 };
 
 export default function ResultadoCompraScreen({ navigation, route }) {
@@ -31,6 +38,7 @@ export default function ResultadoCompraScreen({ navigation, route }) {
     if (returnTo) {
       navigation.navigate(returnTo);
     } else {
+      navigation.reset({ index: 0, routes: [{ name: 'AuctionsList' }] });
       navigation.getParent()?.navigate('Home');
     }
   }

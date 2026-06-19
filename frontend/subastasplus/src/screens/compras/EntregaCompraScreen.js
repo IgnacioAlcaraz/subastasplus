@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator,
+  TextInput, ActivityIndicator, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography } from '../../constants';
@@ -15,7 +15,7 @@ export default function EntregaCompraScreen({ navigation, route }) {
 
   async function handlePagar() {
     if (metodoEntrega === 'envio' && !direccion.trim()) {
-      // TODO: reemplazar por pantalla de error inline cuando esté disponible
+      Alert.alert('Dirección requerida', 'Ingresá tu dirección para continuar con el envío.');
       return;
     }
     setLoading(true);
@@ -26,7 +26,7 @@ export default function EntregaCompraScreen({ navigation, route }) {
       });
       navigation.navigate('ResultadoCompra', { tipo: 'exitosa' });
     } catch (error) {
-      const tipo = error.status === 402 ? 'fondos_insuficientes' : 'exitosa';
+      const tipo = error.status === 402 ? 'fondos_insuficientes' : 'error_pago';
       const returnTo = tipo === 'fondos_insuficientes' ? 'Multas' : undefined;
       navigation.navigate('ResultadoCompra', { tipo, ...(returnTo ? { returnTo } : {}) });
     } finally {

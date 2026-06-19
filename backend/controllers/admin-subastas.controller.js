@@ -10,6 +10,7 @@ const Personas = require("../models/personas");
 const Asistentes = require("../models/asistentes");
 const RegistroDeSubasta = require("../models/registro_de_subasta");
 const RegistroSubastaExtension = require("../models/registro_subasta_extension");
+const SolicitudesVenta = require("../models/solicitudes_venta");
 const HttpError = require("../lib/http-error");
 
 const EMPRESA_CLIENTE_ID = 1;
@@ -246,6 +247,7 @@ async function ejecutarCierreItem(subastaId, itemId) {
       metodo_entrega: "retiro_personal",
     });
     await ItemsCatalogoEstado.update(itemId, { estado: "vendida", expiry_at: null });
+    await supabase.from("solicitudes_venta").update({ estado: "vendida" }).eq("producto", item.producto);
     realtime.broadcast(subastaId, {
       event: "pieza_cerrada",
       itemId: String(itemId),
@@ -275,6 +277,7 @@ async function ejecutarCierreItem(subastaId, itemId) {
   });
 
   await ItemsCatalogoEstado.update(itemId, { estado: "vendida", expiry_at: null });
+  await supabase.from("solicitudes_venta").update({ estado: "vendida" }).eq("producto", item.producto);
 
   await crearNotificacion(clienteGanadorId, {
     tipo: "puja_ganada",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert,
 } from 'react-native';
@@ -15,25 +15,27 @@ export default function FacturaCompraScreen({ navigation, route }) {
   const { compraId, moneda, numeroItem } = route.params;
   const [compra, setCompra] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorCarga, setErrorCarga] = useState(false);
 
-  useEffect(() => {
-    async function cargar() {
-      try {
-        const data = await getCompra(compraId);
-        setCompra(data);
-      } catch {
-        Alert.alert('Error', 'No se pudo cargar la factura.');
-      } finally {
-        setLoading(false);
-      }
+  const cargar = useCallback(async () => {
+    setLoading(true);
+    setErrorCarga(false);
+    try {
+      const data = await getCompra(compraId);
+      setCompra(data);
+    } catch {
+      setErrorCarga(true);
+    } finally {
+      setLoading(false);
     }
-    cargar();
-  }, []);
+  }, [compraId]);
+
+  useEffect(() => { cargar(); }, [cargar]);
 
   const porcentajeComision = compra && compra.montoPujado > 0
     ? Math.round((compra.comisiones / compra.montoPujado) * 100)
     : 0;
-  const costoEnvioEstimado = compra ? Math.round(compra.montoPujado * 0.02) : 0;
+  const costoEnvioEstimado = compra ? Math.round((compra.montoPujado + compra.comisiones) * 0.02) : 0;
   const totalEstimado = compra ? compra.montoPujado + compra.comisiones + costoEnvioEstimado : 0;
 
   const tituloNumero = numeroItem
@@ -49,6 +51,13 @@ export default function FacturaCompraScreen({ navigation, route }) {
 
       {loading ? (
         <ActivityIndicator size="large" color={colors.primary} style={styles.loader} />
+      ) : errorCarga ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTexto}>No se pudo cargar la factura.</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={cargar}>
+            <Text style={styles.retryTexto}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
       ) : compra ? (
         <>
           <ScrollView contentContainerStyle={styles.content}>
@@ -102,6 +111,10 @@ const styles = StyleSheet.create({
   back: { fontSize: 28, color: colors.textPrimary, lineHeight: 32, marginRight: 8 },
   headerTitle: { ...typography.h3, color: colors.textPrimary },
   loader: { flex: 1, justifyContent: 'center' },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
+  errorTexto: { ...typography.body, color: colors.textSecondary },
+  retryBtn: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 24 },
+  retryTexto: { ...typography.button, color: colors.textPrimary },
   content: { padding: 20, paddingBottom: 32 },
   tituloPieza: { ...typography.h3, color: colors.textPrimary, marginBottom: 16 },
   separador: { height: 1, backgroundColor: colors.border, marginVertical: 16 },
