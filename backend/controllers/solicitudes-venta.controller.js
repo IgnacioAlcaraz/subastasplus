@@ -168,13 +168,15 @@ exports.crear = asyncHandler(async (req, res) => {
     fecha_creacion: new Date().toISOString(),
   });
 
-  // Insertar fotos
-  for (const img of imagenes) {
-    await FotosSolicitudVenta.create({
-      solicitud: solicitud.identificador,
-      foto: base64ToBytea(img),
-    });
-  }
+  // Insertar fotos en paralelo; returning solo el pk para no bajar los bytes de la imagen de vuelta
+  await Promise.all(
+    imagenes.map((img) =>
+      FotosSolicitudVenta.create(
+        { solicitud: solicitud.identificador, foto: base64ToBytea(img) },
+        { returning: 'identificador' }
+      )
+    )
+  );
 
   res.status(201).json(await fullShape(solicitud));
 });

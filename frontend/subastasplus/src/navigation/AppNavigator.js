@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 import HomeNavigator from './HomeNavigator';
 import AuctionsNavigator from './AuctionsNavigator';
 import VentasNavigator from './VentasNavigator';
@@ -36,21 +37,54 @@ export default function AppNavigator() {
           tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border },
         }}
       >
-        <Tab.Screen name="Home" component={HomeNavigator} options={{ title: 'Inicio' }} />
+        <Tab.Screen
+          name="Home"
+          component={HomeNavigator}
+          options={{
+            title: 'Inicio',
+            tabBarIcon: ({ focused, color, size }) => (
+              <Ionicons name={focused ? 'home' : 'home-outline'} size={size} color={color} />
+            ),
+          }}
+        />
         <Tab.Screen
           name="Auctions"
           component={AuctionsNavigator}
-          options={{ title: 'Subastas' }}
+          options={{
+            title: 'Subastas',
+            tabBarIcon: ({ focused, color, size }) => (
+              <Ionicons name={focused ? 'pricetag' : 'pricetag-outline'} size={size} color={color} />
+            ),
+          }}
           listeners={({ navigation }) => ({
             tabPress: (e) => {
-              // siempre volvemos al listado al tocar el tab, aunque ya estés adentro de una subasta
               e.preventDefault();
               navigation.navigate('Auctions', { screen: 'AuctionsList' });
             },
           })}
         />
-        <Tab.Screen name="Ventas" component={VentasNavigator} options={{ title: 'Vender' }} listeners={guestListener()} />
-        <Tab.Screen name="Profile" component={ProfileNavigator} options={{ title: 'Perfil' }} listeners={guestListener()} />
+        <Tab.Screen
+          name="Ventas"
+          component={VentasNavigator}
+          options={{
+            title: 'Vender',
+            tabBarIcon: ({ focused, color, size }) => (
+              <Ionicons name={focused ? 'add-circle' : 'add-circle-outline'} size={size} color={color} />
+            ),
+          }}
+          listeners={guestListener()}
+        />
+        <Tab.Screen
+          name="Profile"
+          component={ProfileNavigator}
+          options={{
+            title: 'Perfil',
+            tabBarIcon: ({ focused, color, size }) => (
+              <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />
+            ),
+          }}
+          listeners={guestListener()}
+        />
       </Tab.Navigator>
       <GuestModal
         visible={modalVisible}

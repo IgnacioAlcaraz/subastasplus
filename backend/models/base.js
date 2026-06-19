@@ -40,9 +40,9 @@ function createModel({ table, pk = "identificador" }) {
       return (data?.[pk] || 0) + 1;
     },
 
-    async create(data) {
+    async create(data, { returning = '*' } = {}) {
       const tryInsert = async (payload) =>
-        supabase.from(table).insert(payload).select().single();
+        supabase.from(table).insert(payload).select(returning).single();
 
       let { data: row, error } = await tryInsert(data);
       // Fallback para tablas sin SERIAL: si el pk vino null, computamos y reintentamos.

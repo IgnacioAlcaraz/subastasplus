@@ -16,6 +16,15 @@ const TIPOS = [
   { value: 'otro', label: 'Otro' },
 ];
 
+const CAMPO_PERSONA = {
+  arte:      { label: 'Artista',              placeholder: 'Ej: Antonio Berni' },
+  antiguedad:{ label: 'Dueño anterior',       placeholder: 'Ej: Familia García' },
+  joya:      { label: 'Joyero / marca',       placeholder: 'Ej: Cartier' },
+  vehiculo:  { label: 'Dueño anterior',       placeholder: 'Ej: Juan Pérez' },
+  mueble:    { label: 'Diseñador / fabricante', placeholder: 'Ej: Le Corbusier' },
+  otro:      null,
+};
+
 export default function NuevaSolicitudStep1Screen({ navigation }) {
   const [tipo, setTipo] = useState('arte');
   const [nombreBien, setNombreBien] = useState('');
@@ -46,7 +55,7 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
-        quality: 0.4, // reducimos la calidad para que las fotos en base64 no exploten el payload
+        quality: 0.25,
         base64: true,
         exif: false,
       });
@@ -106,7 +115,7 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
           <TouchableOpacity
             key={t.value}
             style={[styles.chip, tipo === t.value && styles.chipActive]}
-            onPress={() => setTipo(t.value)}
+            onPress={() => { setTipo(t.value); setArtista(''); }}
             activeOpacity={0.7}
           >
             <Text style={[styles.chipText, tipo === t.value && styles.chipTextActive]}>
@@ -117,7 +126,14 @@ export default function NuevaSolicitudStep1Screen({ navigation }) {
       </ScrollView>
 
       <Input label="Nombre del bien" value={nombreBien} onChangeText={setNombreBien} placeholder="Ej: Jarrón Ming" />
-      <Input label="Artista / diseñador" value={artista} onChangeText={setArtista} placeholder="Ej: Antonio Berni" />
+      {CAMPO_PERSONA[tipo] && (
+        <Input
+          label={CAMPO_PERSONA[tipo].label}
+          value={artista}
+          onChangeText={setArtista}
+          placeholder={CAMPO_PERSONA[tipo].placeholder}
+        />
+      )}
       <Input label="Descripción del bien" value={descripcion} onChangeText={setDescripcion} placeholder="Ej: Collage sobre madera, 120×90cm." />
 
       <View style={styles.fotosHeader}>
