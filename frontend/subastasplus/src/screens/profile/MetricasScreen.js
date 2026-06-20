@@ -98,7 +98,7 @@ export default function MetricasScreen({ navigation }) {
 
       <View style={styles.statsRow}>
         <StatBox value={data?.totalSubastasAsistidas ?? 0} label="Participadas" />
-        <StatBox value={data?.totalGanadas ?? 0} label="Ganadas" />
+        <StatBox value={data?.totalGanadas ?? 0} label="Productos ganados" />
         <StatBox value={`${data?.porcentajeVictorias ?? 0}%`} label="Tasa éxito" />
       </View>
 

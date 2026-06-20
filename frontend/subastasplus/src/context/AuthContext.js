@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { verificarToken } from '../api/registro';
 import { setPendingAuthRoute } from '../navigation/pendingAuthRoute';
@@ -21,7 +22,17 @@ export function AuthProvider({ children }) {
     // VentasScreen y VentaDetalleScreen para WebSocket e imágenes autenticadas)
     setSessionEventHandlers({
       onTokensRefreshed: (newToken) => setToken(newToken),
-      onSessionExpired: () => logout(),
+      onSessionExpired: (reason) => {
+        logout();
+        if (reason === 'judicial') {
+          setTimeout(() => {
+            Alert.alert(
+              'Cuenta bloqueada',
+              'Tu cuenta fue bloqueada por incumplimiento de pago. El caso fue derivado a la justicia.',
+            );
+          }, 500);
+        }
+      },
     });
   }, []);
 

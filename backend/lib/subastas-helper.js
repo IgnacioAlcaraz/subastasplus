@@ -35,4 +35,22 @@ async function cantidadPiezasDeSubasta(subastaId) {
   return count || 0;
 }
 
-module.exports = { cantidadPiezasDeSubasta, piezaEnSubasta };
+async function quedanItemsPorSubastar(subastaId) {
+  const { data: cats } = await supabase
+    .from("catalogos")
+    .select("identificador")
+    .eq("subasta", subastaId);
+  const catIds = (cats || []).map((c) => c.identificador);
+  if (!catIds.length) return false;
+  const { data: items } = await supabase
+    .from("items_catalogo")
+    .select("identificador")
+    .in("catalogo", catIds);
+  for (const item of items || []) {
+    const estado = await ItemsCatalogoEstado.findOne({ item: item.identificador });
+    if (estado?.estado === "pendiente" || estado?.estado === "en_subasta") return true;
+  }
+  return false;
+}
+
+module.exports = { cantidadPiezasDeSubasta, piezaEnSubasta, quedanItemsPorSubastar };

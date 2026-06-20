@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -68,12 +68,9 @@ export default function HomeScreen({ navigation }) {
     }
   }, [isGuest]);
 
-  useEffect(() => {
-    cargarDatos();
-  }, [cargarDatos]);
-
   useFocusEffect(
     useCallback(() => {
+      cargarDatos();
       if (isGuest) return;
       let activo = true;
       getNotificaciones(1)
@@ -84,7 +81,7 @@ export default function HomeScreen({ navigation }) {
       return () => {
         activo = false;
       };
-    }, [isGuest])
+    }, [cargarDatos, isGuest])
   );
 
   function abrirNotificaciones() {
@@ -120,7 +117,7 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.saludo}>
                 {isGuest ? "Bienvenido" : `Hola, ${perfil?.nombre ?? "..."}`}
               </Text>
-              <Text style={styles.headerTitulo}>SubastaPlus</Text>
+              <Text style={styles.headerTitulo}>SubastasPlus</Text>
             </View>
             <TouchableOpacity onPress={abrirNotificaciones}>
               <Text style={styles.campana}>🔔</Text>

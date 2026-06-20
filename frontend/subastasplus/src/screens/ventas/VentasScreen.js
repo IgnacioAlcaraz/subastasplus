@@ -4,9 +4,8 @@ import {
   StyleSheet, ActivityIndicator, Image,
 } from 'react-native';
 import { colors, typography } from '../../constants';
-import { useAuth } from '../../context/AuthContext';
 import { getSolicitudes } from '../../api/solicitudesVenta';
-import { SERVER_URL, esErrorServidor } from '../../api/client';
+import client, { esErrorServidor } from '../../api/client';
 import ServerErrorScreen from '../../components/common/ServerErrorScreen';
 
 const ESTADO_COLOR = {
@@ -41,8 +40,52 @@ const ESTADO_LABEL = {
   cancelado: 'Cancelada',
 };
 
+function SolicitudCard({ item, onPress }) {
+  const [imageUri, setImageUri] = useState(null);
+
+  useEffect(() => {
+    if (!item.imagenes?.length) return;
+    let cancelled = false;
+    async function cargar() {
+      try {
+        const cleanPath = item.imagenes[0].replace(/^\/v1/, '');
+        const response = await client.get(cleanPath, { responseType: 'arraybuffer' });
+        const bytes = new Uint8Array(response.data);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        if (!cancelled) setImageUri(`data:image/jpeg;base64,${btoa(binary)}`);
+      } catch {}
+    }
+    cargar();
+    return () => { cancelled = true; };
+  }, [item.id]);
+
+  const label = ESTADO_LABEL[item.estado] ?? item.estado ?? '';
+  const badgeColor = ESTADO_COLOR[item.estado] ?? colors.textSecondary;
+
+  return (
+    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onPress}>
+      <View style={styles.thumb}>
+        {imageUri ? (
+          <Image source={{ uri: imageUri }} style={styles.thumbImage} />
+        ) : (
+          <View style={[styles.thumbImage, styles.thumbPlaceholder]} />
+        )}
+      </View>
+      <View style={styles.info}>
+        <Text style={styles.descripcion} numberOfLines={1}>{item.descripcion}</Text>
+        <View style={[styles.badge, { backgroundColor: badgeColor + '22' }]}>
+          <Text style={[styles.badgeText, { color: badgeColor }]}>{label}</Text>
+        </View>
+      </View>
+      <Text style={styles.chevron}>›</Text>
+    </TouchableOpacity>
+  );
+}
+
 export default function VentasScreen({ navigation }) {
-  const { token } = useAuth();
   const [solicitudes, setSolicitudes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -75,37 +118,7 @@ export default function VentasScreen({ navigation }) {
   }
 
   function renderItem({ item }) {
-    const label = ESTADO_LABEL[item.estado] ?? item.estado ?? '';
-    const badgeColor = ESTADO_COLOR[item.estado] ?? colors.textSecondary;
-    const imageUri = item.imagenes?.length > 0
-      ? `${SERVER_URL}${item.imagenes[0]}`
-      : null;
-
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        activeOpacity={0.7}
-        onPress={() => navigation.navigate('VentaDetalle', { id: item.id })}
-      >
-        <View style={styles.thumb}>
-          {imageUri ? (
-            <Image
-              source={{ uri: imageUri, headers: { Authorization: `Bearer ${token}` } }}
-              style={styles.thumbImage}
-            />
-          ) : (
-            <View style={[styles.thumbImage, styles.thumbPlaceholder]} />
-          )}
-        </View>
-        <View style={styles.info}>
-          <Text style={styles.descripcion} numberOfLines={1}>{item.descripcion}</Text>
-          <View style={[styles.badge, { backgroundColor: badgeColor + '22' }]}>
-            <Text style={[styles.badgeText, { color: badgeColor }]}>{label}</Text>
-          </View>
-        </View>
-        <Text style={styles.chevron}>›</Text>
-      </TouchableOpacity>
-    );
+    return <SolicitudCard item={item} onPress={() => navigation.navigate('VentaDetalle', { id: item.id })} />;
   }
 
   if (loading) {

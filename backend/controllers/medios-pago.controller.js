@@ -1,5 +1,8 @@
 const supabase = require("../supabase-client");
 const MediosPago = require("../models/medios_pago");
+const Asistentes = require("../models/asistentes");
+const AsistentesExtension = require("../models/asistentes_extension");
+const RegistroSubastaExtension = require("../models/registro_subasta_extension");
 const HttpError = require("../lib/http-error");
 const {
   medioPagoShape,
@@ -20,6 +23,24 @@ async function findOwn(id, clienteId) {
   return row;
 }
 
+async function calcularComprometido(clienteId, medioId) {
+  const { data: registros } = await supabase
+    .from("registro_de_subasta")
+    .select("identificador, importe, comision, subasta")
+    .eq("cliente", clienteId);
+  let comprometido = 0;
+  for (const reg of registros || []) {
+    const asistente = await Asistentes.findOne({ cliente: clienteId, subasta: reg.subasta });
+    if (!asistente) continue;
+    const extAsis = await AsistentesExtension.findOne({ asistente: asistente.identificador });
+    if (String(extAsis?.medio_pago) !== String(medioId)) continue;
+    const extCompra = await RegistroSubastaExtension.findOne({ registro: reg.identificador });
+    if (!extCompra) continue;
+    comprometido += Number(reg.importe || 0) + Number(reg.comision || 0);
+  }
+  return comprometido;
+}
+
 function requireFields(body, fields, code, message) {
   const camposInvalidos = fields.filter((f) => !body || body[f] === undefined || body[f] === "");
   if (camposInvalidos.length) {
@@ -35,7 +56,13 @@ exports.listar = asyncHandler(async (req, res) => {
     .eq("cliente", req.user.sub)
     .order("identificador");
   if (error) throw error;
-  res.json((data || []).map(medioPagoShape));
+  const result = await Promise.all(
+    (data || []).map(async (row) => {
+      const comprometido = await calcularComprometido(req.user.sub, row.identificador);
+      return medioPagoShape(row, comprometido);
+    })
+  );
+  res.json(result);
 });
 
 // POST /medios-pago/cuenta-nacional
@@ -222,7 +249,8 @@ exports.agregarCheque = asyncHandler(async (req, res) => {
 // GET /medios-pago/:id
 exports.detalle = asyncHandler(async (req, res) => {
   const row = await findOwn(Number(req.params.id), req.user.sub);
-  res.json(medioPagoShape(row));
+  const comprometido = await calcularComprometido(req.user.sub, row.identificador);
+  res.json(medioPagoShape(row, comprometido));
 });
 
 // DELETE /medios-pago/:id

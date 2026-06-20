@@ -12,6 +12,7 @@ const ItemsCatalogoEstado = require("../models/items_catalogo_estado");
 const Seguros = require("../models/seguros");
 const SegurosExtension = require("../models/seguros_extension");
 const Subastas = require("../models/subastas");
+const SubastasExtension = require("../models/subastas_extension");
 const HttpError = require("../lib/http-error");
 const { solicitudShape, polizaShape } = require("../lib/solicitud-venta-shape");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
@@ -252,6 +253,16 @@ exports.asignarSubasta = asyncHandler(async (req, res) => {
   const subasta = await Subastas.findById(Number(subastaId));
   if (!subasta) {
     throw new HttpError(404, "SUBASTA_NO_ENCONTRADA", "La subasta indicada no existe.");
+  }
+
+  const subExt = await SubastasExtension.findOne({ subasta: subasta.identificador });
+  const monedaSubasta = subExt?.moneda || "ARS";
+  const monedaSolicitud = row.moneda || "USD";
+  if (monedaSubasta !== monedaSolicitud) {
+    throw new HttpError(400, "MONEDA_INCOMPATIBLE",
+      `La solicitud cotiza en ${monedaSolicitud} pero la subasta es en ${monedaSubasta}.`,
+      { monedaSolicitud, monedaSubasta }
+    );
   }
 
   const catalogo = await findOrCreateCatalogo(Number(subastaId));

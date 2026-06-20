@@ -16,15 +16,6 @@ function formatFecha(isoDate) {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-function formatPlazo(fechaLimite) {
-  if (!fechaLimite) return null;
-  const diff = new Date(fechaLimite) - new Date();
-  if (diff <= 0) return 'Plazo vencido';
-  const horas = Math.floor(diff / (1000 * 60 * 60));
-  const minutos = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  return `${horas}hs ${minutos}min restantes`;
-}
-
 function formatMonto(monto, moneda) {
   const simbolo = moneda === 'USD' ? 'US$' : '$';
   return `${simbolo} ${Number(monto).toLocaleString('es-AR')}`;
@@ -58,10 +49,12 @@ export default function MultasScreen({ navigation }) {
       const [multas, mediosData] = await Promise.all([getMultas(), getMediosPago()]);
       const activa = multas.find((m) => m.estado === 'pendiente') || null;
       setMulta(activa);
-      const verificados = (Array.isArray(mediosData) ? mediosData : mediosData.mediosPago ?? [])
+      const todos = (Array.isArray(mediosData) ? mediosData : mediosData.mediosPago ?? [])
         .filter((m) => m.verificado === true);
-      setMedios(verificados);
-      setSelectedMedio(verificados[0]?.id ?? null);
+      const monedaMulta = activa?.moneda || null;
+      const compatibles = monedaMulta ? todos.filter((m) => m.moneda === monedaMulta) : todos;
+      setMedios(compatibles);
+      setSelectedMedio(compatibles[0]?.id ?? null);
     } catch (error) {
       if (esErrorServidor(error)) setErrorServidor(true);
     }
@@ -86,12 +79,6 @@ export default function MultasScreen({ navigation }) {
       const code = error?.response?.data?.code;
       if (code === 'MULTA_PAGO_FALLIDO') {
         Alert.alert('Pago rechazado', 'No se pudo procesar el pago. Probá con otro medio de pago.');
-      } else if (code === 'MULTA_PLAZO_VENCIDO') {
-        Alert.alert(
-          'Plazo vencido',
-          'El plazo de 72 horas venció. Tu caso fue derivado a la justicia.',
-          [{ text: 'Aceptar', onPress: reintentar }],
-        );
       } else {
         Alert.alert('Error', 'Ocurrió un error al procesar el pago. Intentá de nuevo.');
       }
@@ -144,11 +131,6 @@ export default function MultasScreen({ navigation }) {
             )}
             {multa.fechaCreacion && (
               <Text style={styles.detalleLine}>Generada: {formatFecha(multa.fechaCreacion)}</Text>
-            )}
-            {multa.fechaLimite && (
-              <Text style={[styles.detalleLine, styles.plazo]}>
-                Plazo: {formatPlazo(multa.fechaLimite)}
-              </Text>
             )}
           </View>
 
@@ -268,11 +250,6 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.textSecondary,
     marginTop: 2,
-  },
-  plazo: {
-    color: colors.warning,
-    fontWeight: '600',
-    marginTop: 8,
   },
   sectionLabel: {
     ...typography.label,

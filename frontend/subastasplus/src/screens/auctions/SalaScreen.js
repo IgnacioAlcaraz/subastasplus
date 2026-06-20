@@ -169,7 +169,7 @@ export default function SalaScreen({ navigation, route }) {
             }
           }
           if (msg.event === "subasta_cerrada") {
-            setUiState("subastaCerrada");
+            setUiState((cur) => (cur === "ganador" ? cur : "subastaCerrada"));
           }
           if (msg.event === "pieza_cerrada") {
             if (msg.ganadorClienteId && String(msg.ganadorClienteId) === user?.id) {
@@ -566,10 +566,8 @@ export default function SalaScreen({ navigation, route }) {
           </Text>
           <TouchableOpacity
             style={styles.ganadorBoton}
-            onPress={async () => {
-              setUiState("idle");
-              wsClosedManuallyRef.current = true;
-              try { await salirSala(subastaId); } catch (_) {}
+            onPress={() => {
+              setUiState("sala");
               navigation.navigate("FacturaCompra", {
                 compraId,
                 moneda,

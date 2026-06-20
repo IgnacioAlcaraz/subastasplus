@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography } from '../../constants';
+import { useFocusEffect } from '@react-navigation/native';
 import { getMediosPago } from '../../api/mediosPago';
 import CardMedioPago from '../../components/common/CardMedioPago';
 
@@ -36,9 +37,11 @@ export default function MediosPagoScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => {
-    cargar().finally(() => setLoading(false));
-  }, [cargar]);
+  useFocusEffect(
+    useCallback(() => {
+      cargar().finally(() => setLoading(false));
+    }, [cargar])
+  );
 
   async function onRefresh() {
     setRefreshing(true);

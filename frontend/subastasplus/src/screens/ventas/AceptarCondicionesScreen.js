@@ -222,13 +222,7 @@ export default function AceptarCondicionesScreen({ navigation, route }) {
         </>
       )}
 
-      <View style={styles.nota}>
-        <Text style={styles.notaText}>
-          Al confirmar, el bien debe ser enviado a la dirección indicada. Si al llegar el producto no cumple con lo declarado, la empresa puede rechazarlo y el envío de devolución tendrá cargo.
-        </Text>
-      </View>
-
-      <Button title={loading ? 'Confirmando...' : 'Confirmar y enviar'} onPress={confirmar} disabled={loading} />
+      <Button title={loading ? 'Confirmando...' : 'Confirmar condiciones'} onPress={confirmar} disabled={loading} />
     </ScrollView>
   );
 }

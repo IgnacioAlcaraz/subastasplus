@@ -19,7 +19,7 @@ export default function RegistroCompletoScreen() {
           <Text style={styles.circuloTexto}>OK</Text>
         </View>
 
-        <Text style={styles.titulo}>¡Bienvenido a{'\n'}SubastaPlus!</Text>
+        <Text style={styles.titulo}>¡Bienvenido a{'\n'}SubastasPlus!</Text>
         <Text style={styles.subtitulo}>Tu cuenta está lista.{'\n'}Explorá las subastas.</Text>
 
         <Text style={styles.info}>

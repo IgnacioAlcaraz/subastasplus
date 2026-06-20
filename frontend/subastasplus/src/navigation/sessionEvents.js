@@ -10,6 +10,6 @@ export function notifyTokensRefreshed(token, refreshToken) {
   onTokensRefreshed?.(token, refreshToken);
 }
 
-export function notifySessionExpired() {
-  onSessionExpired?.();
+export function notifySessionExpired(reason) {
+  onSessionExpired?.(reason);
 }

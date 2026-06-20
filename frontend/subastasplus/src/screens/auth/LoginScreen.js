@@ -36,10 +36,6 @@ export default function LoginScreen({ navigation }) {
         Alert.alert("Cuenta pendiente", "Tu cuenta está siendo revisada. Te avisamos cuando esté aprobada.");
         return;
       }
-      if (usuario.estado === "bloqueado_multa") {
-        Alert.alert("Cuenta bloqueada", "Tenés una multa pendiente. Contactate con soporte.");
-        return;
-      }
 
       await saveSession(token, usuario, refreshToken);
     } catch (error) {
@@ -59,7 +55,7 @@ export default function LoginScreen({ navigation }) {
           contentContainerStyle={styles.container}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.title}>SubastaPlus</Text>
+          <Text style={styles.title}>SubastasPlus</Text>
           <Text style={styles.subtitle}>Iniciá sesión para continuar</Text>
 
           <View style={styles.form}>

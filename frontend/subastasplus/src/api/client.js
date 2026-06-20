@@ -87,6 +87,18 @@ client.interceptors.response.use(
       }
     }
 
+    if (
+      error.response?.status === 403 &&
+      error.response?.data?.code === 'AUTH_BLOCKED_JUDICIAL'
+    ) {
+      await AsyncStorage.multiRemove(['token', 'refreshToken', 'user', 'auth_status']);
+      notifySessionExpired('judicial');
+      const err = new Error(error.response.data.message);
+      err.status = 403;
+      err.data = error.response.data;
+      return Promise.reject(err);
+    }
+
     const message = error.response?.data?.message || error.message || 'Error de red';
     const err = new Error(message);
     err.status = error.response?.status;

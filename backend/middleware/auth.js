@@ -1,4 +1,5 @@
 const tokens = require("../lib/tokens");
+const { tieneMultaJudicial } = require("../lib/multas-helper");
 
 function verifyToken(req, res, next) {
   const header = req.headers.authorization || "";
@@ -14,7 +15,6 @@ function verifyToken(req, res, next) {
   }
   try {
     req.user = tokens.verify(token, "access");
-    next();
   } catch {
     return res.status(401).json({
       code: "AUTH_TOKEN_INVALID",
@@ -22,6 +22,17 @@ function verifyToken(req, res, next) {
       details: null,
     });
   }
+
+  tieneMultaJudicial(req.user.sub).then((bloqueado) => {
+    if (bloqueado) {
+      return res.status(403).json({
+        code: "AUTH_BLOCKED_JUDICIAL",
+        message: "Tu cuenta fue bloqueada por incumplimiento de pago. El caso fue derivado a la justicia. No podés acceder a ningún servicio de la aplicación.",
+        details: null,
+      });
+    }
+    next();
+  }).catch(() => next());
 }
 
 function optionalAuth(req, res, next) {

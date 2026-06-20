@@ -15,6 +15,31 @@ const ItemsCatalogo = require("../models/items_catalogo");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
 const { evaluarYActualizarCategoria } = require("../lib/categoria-upgrade");
 
+async function verificarVencimientoCompra(row, ext) {
+  if (
+    ext?.estado_pago !== "fondos_insuficientes" ||
+    !ext?.fecha_limite_pago ||
+    new Date(ext.fecha_limite_pago) >= new Date()
+  ) {
+    return false;
+  }
+  const { data: multa } = await supabase
+    .from("multas")
+    .select("*")
+    .eq("registro", row.identificador)
+    .eq("estado", "pendiente")
+    .maybeSingle();
+  if (multa) {
+    await Multas.update(multa.identificador, { estado: "derivada_justicia" });
+  }
+  await crearNotificacion(row.cliente, {
+    tipo: "multa",
+    titulo: "Caso derivado a la justicia",
+    mensaje: "El plazo de 72 horas para presentar los fondos venció. Tu caso fue derivado a la justicia y tu cuenta fue bloqueada.",
+  });
+  return true;
+}
+
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
@@ -44,9 +69,19 @@ async function compraShape(row) {
   const costoEnvio = ext?.costo_envio ? Number(ext.costo_envio) : null;
   const total = importe + comision + (costoEnvio || 0);
 
+  await verificarVencimientoCompra(row, ext);
+
   let estadoApi = "pendiente_pago";
   if (ext?.estado_pago === "pagada") estadoApi = "pagada";
-  else if (ext?.estado_pago === "fondos_insuficientes") estadoApi = "fondos_insuficientes";
+  else if (ext?.estado_pago === "fondos_insuficientes") {
+    const { data: multaJudicial } = await supabase
+      .from("multas")
+      .select("estado")
+      .eq("registro", row.identificador)
+      .eq("estado", "derivada_justicia")
+      .maybeSingle();
+    estadoApi = multaJudicial ? "derivada_justicia" : "fondos_insuficientes";
+  }
 
   return {
     id: String(row.identificador),
@@ -61,6 +96,7 @@ async function compraShape(row) {
     metodoEntrega: ext?.metodo_entrega || null,
     direccionEnvio: ext?.direccion_envio || null,
     estado: estadoApi,
+    fechaLimitePago: ext?.fecha_limite_pago || null,
     avisoSeguro:
       ext?.metodo_entrega === "retiro_personal"
         ? "Al retirar personalmente perdés la cobertura de seguro durante el traslado."
@@ -141,6 +177,16 @@ exports.cambiarMedioPago = asyncHandler(async (req, res) => {
 // POST /compras/:id/pagar
 exports.pagar = asyncHandler(async (req, res) => {
   const row = await findOwnCompra(Number(req.params.id), req.user.sub);
+
+  const extCheck = await RegistroSubastaExtension.findOne({ registro: row.identificador });
+  if (await verificarVencimientoCompra(row, extCheck)) {
+    throw new HttpError(
+      410,
+      "COMPRA_PLAZO_VENCIDO",
+      "El plazo de 72 horas para presentar los fondos venció. Tu caso fue derivado a la justicia.",
+    );
+  }
+
   const { metodoEntrega, direccionEnvio } = req.body || {};
 
   if (!["envio", "retiro_personal"].includes(metodoEntrega)) {
@@ -197,7 +243,7 @@ exports.pagar = asyncHandler(async (req, res) => {
 
     if (comprometido + importe > monto) {
       const montoMulta = Math.round(importe * 0.1);
-      const fechaLimite = new Date(Date.now() + 72 * 3600 * 1000).toISOString();
+      const fechaLimiteCompra = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 min para testing (prod: 72 * 3600 * 1000)
       const subastaExt = await SubastasExtension.findOne({ subasta: row.subasta });
       const monedaRaw = subastaExt?.moneda || "ARS";
       const moneda = ["ARS", "USD"].includes(monedaRaw) ? monedaRaw : "ARS";
@@ -207,13 +253,14 @@ exports.pagar = asyncHandler(async (req, res) => {
         monto_multa: montoMulta,
         moneda,
         estado: "pendiente",
-        fecha_limite: fechaLimite,
+        fecha_limite: fechaLimiteCompra,
         fecha_creacion: new Date().toISOString(),
       });
       const ext = await RegistroSubastaExtension.findOne({ registro: row.identificador });
       if (ext) {
         await RegistroSubastaExtension.update(row.identificador, {
           estado_pago: "fondos_insuficientes",
+          fecha_limite_pago: fechaLimiteCompra,
           metodo_entrega: metodoEntrega,
           direccion_envio: direccionEnvio || null,
         });
@@ -221,6 +268,7 @@ exports.pagar = asyncHandler(async (req, res) => {
         await RegistroSubastaExtension.create({
           registro: row.identificador,
           estado_pago: "fondos_insuficientes",
+          fecha_limite_pago: fechaLimiteCompra,
           metodo_entrega: metodoEntrega,
           direccion_envio: direccionEnvio || null,
         });
@@ -228,7 +276,7 @@ exports.pagar = asyncHandler(async (req, res) => {
       await crearNotificacion(req.user.sub, {
         tipo: "multa",
         titulo: "Fondos insuficientes — multa generada",
-        mensaje: `Se generó una multa de $${montoMulta} por fondos insuficientes. Tenés 72 horas para pagarla antes de que sea derivada a la justicia.`,
+        mensaje: `Se generó una multa de $${montoMulta} por fondos insuficientes. Tenés 72 horas para presentar los fondos de la compra.`,
         accionUrl: `/multas/${multa.identificador}`,
       });
       throw new HttpError(
@@ -238,7 +286,7 @@ exports.pagar = asyncHandler(async (req, res) => {
         {
           montoOfertado: importe,
           montoMulta,
-          fechaLimite,
+          fechaLimiteCompra,
           multa: {
             id: String(multa.identificador),
             compraId: String(row.identificador),
@@ -246,7 +294,6 @@ exports.pagar = asyncHandler(async (req, res) => {
             montoMulta,
             moneda,
             estado: "pendiente",
-            fechaLimite,
             fechaCreacion: multa.fecha_creacion,
           },
         },

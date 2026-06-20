@@ -31,7 +31,8 @@ function montoDisponible(row) {
   return null;
 }
 
-function medioPagoShape(row) {
+function medioPagoShape(row, comprometido = 0) {
+  const total = montoDisponible(row);
   return {
     id: String(row.identificador),
     tipo: row.tipo,
@@ -41,7 +42,7 @@ function medioPagoShape(row) {
     ultimosDigitos: row.ultimos_digitos || null,
     vencimiento: row.vencimiento || null,
     montoCheque: row.monto_cheque != null ? Number(row.monto_cheque) : null,
-    montoDisponible: montoDisponible(row),
+    montoDisponible: total != null ? Math.max(0, total - comprometido) : null,
     creadoEn: row.created_at || null,
   };
 }

@@ -8,6 +8,7 @@ const Productos = require("../models/productos");
 const ProductosExtension = require("../models/productos_extension");
 const Personas = require("../models/personas");
 const Asistentes = require("../models/asistentes");
+const AsistentesExtension = require("../models/asistentes_extension");
 const RegistroDeSubasta = require("../models/registro_de_subasta");
 const RegistroSubastaExtension = require("../models/registro_subasta_extension");
 const SolicitudesVenta = require("../models/solicitudes_venta");
@@ -21,7 +22,7 @@ const {
   fechaTimestamp,
   estadoApi,
 } = require("../lib/subasta-shape");
-const { cantidadPiezasDeSubasta, piezaEnSubasta } = require("../lib/subastas-helper");
+const { cantidadPiezasDeSubasta, piezaEnSubasta, quedanItemsPorSubastar } = require("../lib/subastas-helper");
 const realtime = require("../lib/realtime");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
 const itemTimer = require("../lib/item-timer");
@@ -186,6 +187,24 @@ exports.agregarItem = asyncHandler(async (req, res) => {
     throw new HttpError(404, "PRODUCTO_NO_ENCONTRADO", "El producto indicado no existe.");
   }
 
+  const ext = await SubastasExtension.findOne({ subasta: subastaId });
+  if (ext?.es_coleccion === "si") {
+    const catalogo = await Catalogos.findOne({ subasta: subastaId });
+    if (catalogo) {
+      const { data: itemsExistentes } = await supabase
+        .from("items_catalogo")
+        .select("producto")
+        .eq("catalogo", catalogo.identificador);
+      if (itemsExistentes?.length > 0) {
+        const primerProducto = await Productos.findById(itemsExistentes[0].producto);
+        if (primerProducto && primerProducto.duenio !== producto.duenio) {
+          throw new HttpError(400, "COLECCION_DUENIO_DISTINTO",
+            "En una subasta de colección todos los bienes deben pertenecer al mismo dueño.");
+        }
+      }
+    }
+  }
+
   // Actualizar cantidadElementos si se provee
   if (cantidadElementos !== undefined) {
     const prodExt = await ProductosExtension.findOne({ producto: producto.identificador });
@@ -239,7 +258,7 @@ async function ejecutarCierreItem(subastaId, itemId) {
       subasta: subastaId,
       producto: item.producto,
       importe: precioBase,
-      comision: 0,
+      comision: 1,
     });
     await RegistroSubastaExtension.create({
       registro: registroEmpresa.identificador,
@@ -256,6 +275,9 @@ async function ejecutarCierreItem(subastaId, itemId) {
       montoGanador: precioBase,
       compraId: String(registroEmpresa.identificador),
     });
+    if (!(await quedanItemsPorSubastar(subastaId))) {
+      await cerrarSubastaCompleta(subastaId);
+    }
     return { vendida: true, ganador: null, compraEmpresa: true, monto: precioBase };
   }
 
@@ -294,6 +316,11 @@ async function ejecutarCierreItem(subastaId, itemId) {
     montoGanador,
     compraId: String(registro.identificador),
   });
+
+  if (!(await quedanItemsPorSubastar(subastaId))) {
+    await Subastas.update(subastaId, { estado: "cerrada" });
+    realtime.broadcast(subastaId, { event: "subasta_cerrada", subastaId: String(subastaId) });
+  }
 
   return {
     vendida: true,
@@ -389,11 +416,21 @@ exports.cerrarSubasta = asyncHandler(async (req, res) => {
     throw new HttpError(409, "SUBASTA_PIEZA_ACTIVA", "Hay una pieza en subasta activa. Cerrala antes de cerrar la subasta.");
   }
 
-  await Subastas.update(subastaId, { estado: "cerrada" });
-
-  realtime.broadcast(subastaId, { event: "subasta_cerrada", subastaId: String(subastaId) });
+  await cerrarSubastaCompleta(subastaId);
 
   res.json({ cerrada: true, subastaId: String(subastaId) });
 });
+
+async function cerrarSubastaCompleta(subastaId) {
+  await Subastas.update(subastaId, { estado: "cerrada" });
+  const { data: asistentes } = await supabase
+    .from("asistentes")
+    .select("identificador")
+    .eq("subasta", subastaId);
+  for (const a of asistentes || []) {
+    await AsistentesExtension.update(a.identificador, { estado_conexion: "desconectado" });
+  }
+  realtime.broadcast(subastaId, { event: "subasta_cerrada", subastaId: String(subastaId) });
+}
 
 exports.ejecutarCierreItem = ejecutarCierreItem;

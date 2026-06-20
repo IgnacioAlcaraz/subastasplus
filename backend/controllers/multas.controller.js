@@ -3,7 +3,10 @@ const Multas = require("../models/multas");
 const RegistroDeSubasta = require("../models/registro_de_subasta");
 const RegistroSubastaExtension = require("../models/registro_subasta_extension");
 const MediosPago = require("../models/medios_pago");
+const Asistentes = require("../models/asistentes");
+const AsistentesExtension = require("../models/asistentes_extension");
 const HttpError = require("../lib/http-error");
+const { montoDisponible } = require("../lib/medio-pago-shape");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
 
 function asyncHandler(fn) {
@@ -20,7 +23,6 @@ function multaShape(m) {
     montoMulta: m.monto_multa != null ? Number(m.monto_multa) : null,
     moneda: m.moneda || "ARS",
     estado: m.estado,
-    fechaLimite: m.fecha_limite || null,
     fechaCreacion: m.fecha_creacion || null,
   };
 }
@@ -62,22 +64,6 @@ exports.pagar = asyncHandler(async (req, res) => {
     throw new HttpError(404, "MULTA_NO_ENCONTRADA", "La multa solicitada no existe.");
   }
 
-  // Plazo vencido → derivar a justicia
-  if (multa.estado === "pendiente" && multa.fecha_limite && new Date(multa.fecha_limite) < new Date()) {
-    await Multas.update(multa.identificador, { estado: "derivada_justicia" });
-    await crearNotificacion(req.user.sub, {
-      tipo: "multa",
-      titulo: "Multa derivada a la justicia",
-      mensaje: "El plazo de 72 horas venció. Tu caso fue derivado a la justicia y tu cuenta fue bloqueada permanentemente.",
-    });
-    throw new HttpError(
-      410,
-      "MULTA_PLAZO_VENCIDO",
-      "El plazo de 72 horas venció. Tu caso fue derivado a la justicia y tu cuenta fue bloqueada permanentemente.",
-      { fechaLimite: multa.fecha_limite, estado: "derivada_justicia" },
-    );
-  }
-
   if (multa.estado !== "pendiente") {
     throw new HttpError(400, "MULTA_NO_PAGABLE", "Esta multa no puede pagarse en su estado actual.", {
       estado: multa.estado,
@@ -99,11 +85,27 @@ exports.pagar = asyncHandler(async (req, res) => {
       razon: "medio_no_verificado",
     });
   }
-  // solo para cheques verificamos que el monto cubra la multa; otros medios se validan en el banco
-  if (medio.tipo === "cheque_certificado" && Number(medio.monto_cheque || 0) < Number(multa.monto_multa || 0)) {
-    throw new HttpError(402, "MULTA_PAGO_FALLIDO", "No se pudo procesar el pago de la multa. Probá con otro medio de pago.", {
-      razon: "fondos_insuficientes",
-    });
+  const monto = montoDisponible(medio);
+  if (monto !== null) {
+    const { data: registros } = await supabase
+      .from("registro_de_subasta")
+      .select("identificador, importe, comision, subasta")
+      .eq("cliente", req.user.sub);
+    let comprometido = 0;
+    for (const reg of registros || []) {
+      const asistente = await Asistentes.findOne({ cliente: req.user.sub, subasta: reg.subasta });
+      if (!asistente) continue;
+      const extAsis = await AsistentesExtension.findOne({ asistente: asistente.identificador });
+      if (String(extAsis?.medio_pago) !== String(medio.identificador)) continue;
+      const extCompra = await RegistroSubastaExtension.findOne({ registro: reg.identificador });
+      if (!extCompra) continue;
+      comprometido += Number(reg.importe || 0) + Number(reg.comision || 0);
+    }
+    if (comprometido + Number(multa.monto_multa) > monto) {
+      throw new HttpError(402, "MULTA_PAGO_FALLIDO", "No se pudo procesar el pago de la multa. Probá con otro medio de pago.", {
+        razon: "fondos_insuficientes",
+      });
+    }
   }
 
   const updated = await Multas.update(multa.identificador, {

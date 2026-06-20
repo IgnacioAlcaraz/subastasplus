@@ -5,9 +5,8 @@ import {
   ScrollView, FlatList, Image, Dimensions, Alert,
 } from 'react-native';
 import { colors, typography } from '../../constants';
-import { useAuth } from '../../context/AuthContext';
 import { getSolicitudById, aceptarCondiciones, cancelarSolicitud } from '../../api/solicitudesVenta';
-import { SERVER_URL, esErrorServidor } from '../../api/client';
+import client, { esErrorServidor } from '../../api/client';
 import Button from '../../components/common/Button';
 import ServerErrorScreen from '../../components/common/ServerErrorScreen';
 
@@ -34,7 +33,36 @@ function monedaSimbolo(moneda) {
   return moneda === 'ARS' ? '$' : 'US$';
 }
 
-function Carrusel({ imagenes, token }) {
+function CarruselImagen({ path }) {
+  const [uri, setUri] = useState(null);
+  const ancho = Dimensions.get('window').width;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function cargar() {
+      try {
+        const cleanPath = path.replace(/^\/v1/, '');
+        const response = await client.get(cleanPath, { responseType: 'arraybuffer' });
+        const bytes = new Uint8Array(response.data);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        if (!cancelled) setUri(`data:image/jpeg;base64,${btoa(binary)}`);
+      } catch {}
+    }
+    cargar();
+    return () => { cancelled = true; };
+  }, [path]);
+
+  return uri ? (
+    <Image source={{ uri }} style={{ width: ancho, height: 260 }} resizeMode="cover" />
+  ) : (
+    <View style={[styles.placeholder, { width: ancho, height: 260 }]} />
+  );
+}
+
+function Carrusel({ imagenes }) {
   const [activa, setActiva] = useState(0);
   const ancho = Dimensions.get('window').width;
 
@@ -54,13 +82,7 @@ function Carrusel({ imagenes, token }) {
           const index = Math.round(e.nativeEvent.contentOffset.x / ancho);
           setActiva(index);
         }}
-        renderItem={({ item }) => (
-          <Image
-            source={{ uri: `${SERVER_URL}${item}`, headers: { Authorization: `Bearer ${token}` } }}
-            style={{ width: ancho, height: 260 }}
-            resizeMode="cover"
-          />
-        )}
+        renderItem={({ item }) => <CarruselImagen path={item} />}
       />
       <View style={styles.dots}>
         {imagenes.map((_, i) => (
@@ -319,7 +341,6 @@ function ContenidoRechazada({ solicitud }) {
 
 export default function VentaDetalleScreen({ navigation, route }) {
   const { id } = route.params;
-  const { token } = useAuth();
   const [solicitud, setSolicitud] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorServidor, setErrorServidor] = useState(false);
@@ -458,7 +479,7 @@ export default function VentaDetalleScreen({ navigation, route }) {
         <Text style={styles.back}>‹ Solicitud</Text>
       </TouchableOpacity>
 
-      <Carrusel imagenes={solicitud.imagenes} token={token} />
+      <Carrusel imagenes={solicitud.imagenes} />
 
       {renderContenido()}
 

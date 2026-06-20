@@ -6,7 +6,7 @@ const passwords = require("../lib/passwords");
 const tokens = require("../lib/tokens");
 const HttpError = require("../lib/http-error");
 const { usuarioResumen } = require("../lib/usuario-shape");
-const { tieneMultaActiva, multaPendienteData, tieneMultaJudicial } = require("../lib/multas-helper");
+const { tieneMultaActiva, tieneMultaJudicial } = require("../lib/multas-helper");
 const { enviarCodigoRecuperacion } = require("../lib/mailer");
 
 function asyncHandler(fn) {
@@ -81,17 +81,6 @@ exports.login = asyncHandler(async (req, res) => {
       403,
       "AUTH_BLOCKED_JUDICIAL",
       "Tu cuenta fue bloqueada por incumplimiento de pago. El caso fue derivado a la justicia. No podés acceder a ningún servicio de la aplicación.",
-    );
-  }
-
-  // Bloqueo por multa impaga — debe abonarla antes de poder operar
-  const multaPend = await multaPendienteData(cliente.identificador);
-  if (multaPend) {
-    throw new HttpError(
-      403,
-      "AUTH_BLOCKED_MULTA",
-      "Tu cuenta está suspendida.",
-      { multaId: String(multaPend.identificador), monto: Number(multaPend.monto_multa) },
     );
   }
 
