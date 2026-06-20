@@ -8,6 +8,7 @@ router.use(verifyToken);
 
 router.get("/", ctrl.listar);
 router.get("/:id", ctrl.detalle);
+router.put("/:id/medio-pago", ctrl.cambiarMedioPago);
 router.post("/:id/pagar", ctrl.pagar);
 
 module.exports = router;

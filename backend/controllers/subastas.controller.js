@@ -26,6 +26,22 @@ function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
 
+async function fetchImagenPortada(subastaId) {
+  const { data: cats } = await supabase
+    .from("catalogos")
+    .select("identificador")
+    .eq("subasta", subastaId)
+    .limit(1);
+  if (!cats?.[0]) return null;
+  const { data: items } = await supabase
+    .from("items_catalogo")
+    .select("identificador")
+    .eq("catalogo", cats[0].identificador)
+    .order("identificador")
+    .limit(1);
+  return items?.[0] ? `/v1/piezas/${items[0].identificador}/fotos/0` : null;
+}
+
 async function rematadorNombrePorSubasta(subastadorId) {
   if (!subastadorId) return null;
   // subastadores.identificador es FK a personas
@@ -56,7 +72,8 @@ exports.listar = asyncHandler(async (req, res) => {
     const ext = await SubastasExtension.findOne({ subasta: s.identificador });
     const rematador = await rematadorNombrePorSubasta(s.subastador);
     const cant = await cantidadPiezasDeSubasta(s.identificador);
-    data.push(subastaResumen({ subasta: s, ext, rematadorNombre: rematador, cantidadPiezas: cant }));
+    const imagenPortada = await fetchImagenPortada(s.identificador);
+    data.push(subastaResumen({ subasta: s, ext, rematadorNombre: rematador, cantidadPiezas: cant, imagenPortada }));
   }
 
   res.json({ data, meta: paginate({ page, limit, total: count || 0 }) });
@@ -194,16 +211,20 @@ exports.detallePieza = asyncHandler(async (req, res) => {
   }
 
   let subastaAsignada = null;
+  let monedaSubasta = null;
   if (catalogo?.subasta) {
     const sub = await Subastas.findById(catalogo.subasta);
     if (sub) {
       const ext = await SubastasExtension.findOne({ subasta: sub.identificador });
+      monedaSubasta = ext?.moneda || "ARS";
       subastaAsignada = {
         subastaId: String(sub.identificador),
         titulo: tituloSubasta(sub, ext),
         fecha: fechaTimestamp(sub),
         rematador: await rematadorNombrePorSubasta(sub.subastador),
         ubicacion: sub.ubicacion || null,
+        categoria: sub.categoria || "comun",
+        moneda: monedaSubasta,
       };
     }
   }
@@ -219,6 +240,7 @@ exports.detallePieza = asyncHandler(async (req, res) => {
       artista,
       subastaAsignada,
       fotosCount,
+      moneda: monedaSubasta,
     }),
   );
 });

@@ -16,3 +16,8 @@ export async function pagarCompra(id, { metodoEntrega, direccionEnvio }) {
   const response = await client.post(`/compras/${id}/pagar`, body);
   return response.data;
 }
+
+export async function cambiarMedioPago(id, medioPagoId) {
+  const response = await client.put(`/compras/${id}/medio-pago`, { medioPagoId });
+  return response.data;
+}

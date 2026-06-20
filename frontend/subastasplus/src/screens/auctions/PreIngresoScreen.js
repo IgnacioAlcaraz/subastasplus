@@ -40,8 +40,8 @@ export default function PreIngresoScreen({ navigation, route }) {
         navigation.navigate("PreIngresoMedioPago", {
           subastaId: subasta.id,
           titulo: subasta.titulo,
-          moneda: error.data?.data?.moneda || subasta.moneda,
-          medios: error.data?.data?.medios || [],
+          moneda: error.data?.details?.moneda || subasta.moneda,
+          medios: error.data?.details?.medios || [],
         });
       } else {
         Alert.alert("No podés ingresar", error.message || "Error al acceder a la sala.");

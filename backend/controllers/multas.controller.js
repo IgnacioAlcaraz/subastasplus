@@ -1,6 +1,7 @@
 const supabase = require("../supabase-client");
 const Multas = require("../models/multas");
 const RegistroDeSubasta = require("../models/registro_de_subasta");
+const RegistroSubastaExtension = require("../models/registro_subasta_extension");
 const MediosPago = require("../models/medios_pago");
 const HttpError = require("../lib/http-error");
 const { crearNotificacion } = require("../lib/notificaciones-helper");
@@ -109,6 +110,7 @@ exports.pagar = asyncHandler(async (req, res) => {
     estado: "pagada",
     medio_pago_cobro: medio.identificador,
   });
+  await RegistroSubastaExtension.update(multa.registro, { estado_pago: "pendiente_pago" });
   await crearNotificacion(req.user.sub, {
     tipo: "multa",
     titulo: "Multa pagada",

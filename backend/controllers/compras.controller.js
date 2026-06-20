@@ -107,6 +107,37 @@ exports.detalle = asyncHandler(async (req, res) => {
   res.json(await compraShape(row));
 });
 
+// PUT /compras/:id/medio-pago
+exports.cambiarMedioPago = asyncHandler(async (req, res) => {
+  const row = await findOwnCompra(Number(req.params.id), req.user.sub);
+
+  const ext = await RegistroSubastaExtension.findOne({ registro: row.identificador });
+  if (ext?.estado_pago === "pagada") {
+    throw new HttpError(409, "COMPRA_YA_PAGADA", "No se puede cambiar el medio de pago de una compra ya pagada.");
+  }
+
+  const { medioPagoId } = req.body || {};
+  if (!medioPagoId) {
+    throw new HttpError(400, "COMPRA_DATOS_INVALIDOS", "medioPagoId es requerido.", { campo: "medioPagoId" });
+  }
+
+  const medio = await MediosPago.findById(Number(medioPagoId));
+  if (!medio || medio.cliente !== req.user.sub) {
+    throw new HttpError(404, "PAGO_NO_ENCONTRADO", "Medio de pago no encontrado.");
+  }
+  if (medio.verificado !== "si") {
+    throw new HttpError(400, "PAGO_NO_VERIFICADO", "El medio de pago seleccionado no está verificado.");
+  }
+
+  const asistente = await Asistentes.findOne({ cliente: row.cliente, subasta: row.subasta });
+  if (!asistente) {
+    throw new HttpError(409, "COMPRA_SIN_ASISTENTE", "No se encontró el registro de sala.");
+  }
+  await AsistentesExtension.update(asistente.identificador, { medio_pago: medio.identificador });
+
+  res.json(await compraShape(row));
+});
+
 // POST /compras/:id/pagar
 exports.pagar = asyncHandler(async (req, res) => {
   const row = await findOwnCompra(Number(req.params.id), req.user.sub);

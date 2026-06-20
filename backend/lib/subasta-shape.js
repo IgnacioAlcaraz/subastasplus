@@ -32,7 +32,7 @@ function estadoApiToDb(apiEstado) {
   return null;
 }
 
-function subastaResumen({ subasta, ext, rematadorNombre, cantidadPiezas }) {
+function subastaResumen({ subasta, ext, rematadorNombre, cantidadPiezas, imagenPortada = null }) {
   return {
     id: String(subasta.identificador),
     titulo: tituloSubasta(subasta, ext),
@@ -44,6 +44,7 @@ function subastaResumen({ subasta, ext, rematadorNombre, cantidadPiezas }) {
     rematador: rematadorNombre || null,
     esColeccion: ext?.es_coleccion === "si",
     nombreColeccion: ext?.nombre_coleccion || null,
+    imagenPortada: imagenPortada || null,
   };
 }
 
@@ -94,12 +95,16 @@ function piezaDetalle({
   artista,
   subastaAsignada,
   fotosCount = 0,
+  moneda = null,
 }) {
   return {
     id: String(item.identificador),
     numeroItem: item.identificador,
+    tituloObra: producto?.descripcion_catalogo || producto?.descripcion_completa || "",
     descripcion: producto?.descripcion_completa || producto?.descripcion_catalogo || "",
     precioBase: precioVisible ? Number(item.precio_base) : null,
+    comision: precioVisible ? Number(item.comision || 0) : null,
+    moneda: moneda || "ARS",
     imagenes: Array.from({ length: fotosCount }, (_, i) => `/v1/piezas/${item.identificador}/fotos/${i}`),
     cantidadElementos: prodExt?.cantidad_elementos || 1,
     duenioActual: duenioNombre || null,

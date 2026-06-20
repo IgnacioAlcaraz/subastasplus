@@ -84,15 +84,19 @@ export default function CuentaExteriorScreen({ navigation, route }) {
         <Input
           label="IBAN"
           value={iban}
-          onChangeText={setIban}
+          onChangeText={t => setIban(t.replace(/[^A-Za-z0-9 ]/g, '').toUpperCase().slice(0, 34))}
           placeholder="GB29 NWBK 6016 1331 9268 19"
+          autoCapitalize="characters"
+          maxLength={34}
           error={errors.iban}
         />
         <Input
           label="SWIFT/BIC"
           value={swift}
-          onChangeText={t => setSwift(t.toUpperCase())}
+          onChangeText={t => setSwift(t.replace(/[^A-Za-z0-9]/g, '').toUpperCase().slice(0, 11))}
           placeholder="NWBKGB2L"
+          autoCapitalize="characters"
+          maxLength={11}
           error={errors.swift}
         />
         <Input

@@ -49,7 +49,7 @@ export default function AuctionsScreen({ navigation }) {
     }
   }, []);
 
-  useFocusEffect(cargarDatos);
+  useFocusEffect(useCallback(() => { cargarDatos(); }, [cargarDatos]));
 
   if (loading) {
     return (

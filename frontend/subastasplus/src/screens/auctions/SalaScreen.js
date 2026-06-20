@@ -257,9 +257,20 @@ export default function SalaScreen({ navigation, route }) {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleSalir}>
+        <TouchableOpacity onPress={handleSalir} style={styles.headerBack}>
           <Text style={styles.backTexto}>← {titulo}</Text>
         </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <Text style={styles.enVivoBadge}>● EN VIVO</Text>
+          {segundosRestantes !== null && pieza && (
+            <Text style={[
+              styles.headerTimer,
+              segundosRestantes <= 10 && styles.contadorUrgente,
+            ]}>
+              {segundosRestantes === 0 ? "Cerrando..." : `${segundosRestantes}s`}
+            </Text>
+          )}
+        </View>
       </View>
       {!wsConectado && (
         <View style={styles.reconectandoBanner}>
@@ -296,18 +307,6 @@ export default function SalaScreen({ navigation, route }) {
                   </Text>
                 </Text>
               </View>
-              {segundosRestantes !== null && (
-                <View style={styles.contadorRow}>
-                  <Text style={[
-                    styles.contadorTexto,
-                    segundosRestantes <= 10 && styles.contadorUrgente,
-                  ]}>
-                    {segundosRestantes === 0
-                      ? "Cerrando..."
-                      : `⏱ ${segundosRestantes}s`}
-                  </Text>
-                </View>
-              )}
             </View>
 
             <TouchableOpacity style={styles.streamingBoton}>
@@ -589,12 +588,23 @@ export default function SalaScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: SALA.bg },
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: SALA.borde,
   },
+  headerBack: { flex: 1, marginRight: 12 },
+  headerRight: { alignItems: "flex-end", gap: 2 },
   backTexto: { ...typography.body, color: SALA.texto, fontWeight: "600" },
+  enVivoBadge: { ...typography.caption, color: SALA.verde, fontWeight: "700" },
+  headerTimer: {
+    ...typography.caption,
+    color: SALA.textoSec,
+    fontVariant: ["tabular-nums"],
+  },
   esperando: { flex: 1, justifyContent: "center", alignItems: "center" },
   esperandoTexto: { ...typography.body, color: SALA.textoSec },
   piezaHeader: { padding: 20, paddingBottom: 12 },

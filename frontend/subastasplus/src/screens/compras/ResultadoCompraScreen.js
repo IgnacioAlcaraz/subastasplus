@@ -35,10 +35,12 @@ export default function ResultadoCompraScreen({ navigation, route }) {
 
   function handleSalir() {
     const returnTo = route.params?.returnTo;
-    if (returnTo) {
+    if (returnTo === 'Multas') {
+      navigation.getParent()?.navigate('Profile', { screen: 'Multas' });
+    } else if (returnTo) {
       navigation.navigate(returnTo);
     } else {
-      navigation.reset({ index: 0, routes: [{ name: 'AuctionsList' }] });
+      navigation.popToTop();
       navigation.getParent()?.navigate('Home');
     }
   }

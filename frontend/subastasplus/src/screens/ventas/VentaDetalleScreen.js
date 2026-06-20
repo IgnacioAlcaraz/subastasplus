@@ -181,20 +181,6 @@ function ContenidoEnSubasta({ solicitud, navigation, onCancelar, cancelando }) {
         </View>
       ) : null}
 
-      {solicitud.polizaSeguro ? (
-        <View style={[styles.btns, { marginTop: 8 }]}>
-          <Button
-            title="Ver póliza de seguro"
-            onPress={() => navigation.navigate('PolizaSeguro', {
-              solicitudId: solicitud.id,
-              poliza: solicitud.polizaSeguro,
-            })}
-          />
-        </View>
-      ) : (
-        <Text style={styles.meta}>Sin póliza asignada aún.</Text>
-      )}
-
       <View style={[styles.btns, { marginTop: 8 }]}>
         <TouchableOpacity
           style={styles.btnRechazar}
@@ -456,6 +442,16 @@ export default function VentaDetalleScreen({ navigation, route }) {
     }
   }
 
+  const tienePoliza = !!solicitud.polizaSeguro;
+  const estadosMuestraPoliza = [
+    'en_revision_fisica',
+    'pendiente_asignacion',
+    'en_subasta',
+    'vendida',
+    'no_vendida',
+  ];
+  const mostrarPoliza = tienePoliza && estadosMuestraPoliza.includes(solicitud.estado);
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -465,6 +461,25 @@ export default function VentaDetalleScreen({ navigation, route }) {
       <Carrusel imagenes={solicitud.imagenes} token={token} />
 
       {renderContenido()}
+
+      {mostrarPoliza && (
+        <View style={styles.polizaSection}>
+          <Button
+            title="Ver póliza de seguro"
+            onPress={() => navigation.navigate('PolizaSeguro', {
+              solicitudId: solicitud.id,
+              poliza: solicitud.polizaSeguro,
+            })}
+          />
+          <TouchableOpacity
+            style={styles.btnContactar}
+            onPress={() => navigation.navigate('ContactarAseguradora', { solicitudId: solicitud.id })}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.btnContactarText}>Contactar aseguradora</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -497,4 +512,10 @@ const styles = StyleSheet.create({
   devolucionCard: { gap: 8 },
   infoCard: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 16, gap: 4 },
   infoCardTitulo: { ...typography.label, color: colors.textSecondary },
+  polizaSection: { paddingHorizontal: 20, paddingTop: 8, gap: 12 },
+  btnContactar: {
+    borderWidth: 1, borderColor: colors.border, borderRadius: 12,
+    paddingVertical: 16, alignItems: 'center',
+  },
+  btnContactarText: { ...typography.button, color: colors.textSecondary },
 });
