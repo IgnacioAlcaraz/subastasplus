@@ -21,7 +21,7 @@ const {
   estadoApiToDb,
   paginate,
 } = require("../lib/subasta-shape");
-const { cantidadPiezasDeSubasta, piezaEnSubasta } = require("../lib/subastas-helper");
+const { cantidadPiezasDeSubasta, piezaEnSubasta, tomarPujaSiVigente } = require("../lib/subastas-helper");
 function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
@@ -511,7 +511,6 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
 
   const valorBase = Number(piezaCur.item.precio_base);
   const mejorOfertaRaw = piezaCur.estado.mejor_oferta;
-  const habiaOferta = mejorOfertaRaw != null;
   const mejorOferta = Number(mejorOfertaRaw || piezaCur.item.precio_base);
   const pujaMinima = Number((mejorOferta + valorBase * 0.01).toFixed(2));
   const pujaMaxima = pujaSinMaximo(cliente.categoria)
@@ -535,26 +534,26 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
     );
   }
 
-  // Compuerta de concurrencia: solo gana quien actualiza mejor_oferta desde el valor que leyó.
-  // Un UPDATE de fila es atómico, así que dos pujas simultáneas se serializan y solo una pasa.
+  // Solo prosigue quien gana la toma atómica de la puja; el resto perdió la carrera.
   const expiryAt = new Date(Date.now() + DURACION_PUJA_MS).toISOString();
-  let gate = supabase
-    .from("items_catalogo_estado")
-    .update({ mejor_oferta: monto, expiry_at: expiryAt })
-    .eq("identificador", piezaCur.item.identificador);
-  gate = habiaOferta ? gate.eq("mejor_oferta", mejorOfertaRaw) : gate.is("mejor_oferta", null);
-  const { data: ganada } = await gate.select();
-  if (!ganada || ganada.length === 0) {
+  const tomada = await tomarPujaSiVigente(piezaCur.item.identificador, {
+    mejorOfertaActual: mejorOfertaRaw,
+    monto,
+    expiryAt,
+  });
+  if (!tomada) {
     throw new HttpError(409, "PUJA_SUPERADA", "Alguien pujó antes que vos. Volvé a ofertar.");
   }
 
-  // Notificar al postor cuya puja va a ser superada
-  const { data: pujoAnterior } = await supabase
+  // Notificar al líder anterior (mayor importe actual, antes de insertar la nuestra) que fue superado.
+  // Usar el importe y no el flag evita que una carrera deje sin notificar.
+  const { data: lideres } = await supabase
     .from("pujos")
     .select("*")
     .eq("item", piezaCur.item.identificador)
-    .eq("ganador", "si")
-    .maybeSingle();
+    .order("importe", { ascending: false })
+    .limit(1);
+  const pujoAnterior = lideres?.[0] || null;
   if (pujoAnterior && pujoAnterior.asistente !== asistente.identificador) {
     const asistenteAnterior = await Asistentes.findById(pujoAnterior.asistente);
     if (asistenteAnterior) {

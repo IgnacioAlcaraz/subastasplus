@@ -35,6 +35,20 @@ async function cantidadPiezasDeSubasta(subastaId) {
   return count || 0;
 }
 
+// Toma atómica de la puja: actualiza mejor_oferta y expiry solo si la oferta sigue siendo
+// la que el postor leyó. Un UPDATE de fila es atómico, así que dos pujas simultáneas se
+// serializan y solo una pasa. Devuelve false si otro pujó primero (perdió la carrera).
+async function tomarPujaSiVigente(itemId, { mejorOfertaActual, monto, expiryAt }) {
+  let q = supabase
+    .from("items_catalogo_estado")
+    .update({ mejor_oferta: monto, expiry_at: expiryAt })
+    .eq("item", itemId);
+  q = mejorOfertaActual != null ? q.eq("mejor_oferta", mejorOfertaActual) : q.is("mejor_oferta", null);
+  const { data, error } = await q.select();
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
+}
+
 async function quedanItemsPorSubastar(subastaId) {
   const { data: cats } = await supabase
     .from("catalogos")
@@ -53,4 +67,4 @@ async function quedanItemsPorSubastar(subastaId) {
   return false;
 }
 
-module.exports = { cantidadPiezasDeSubasta, piezaEnSubasta, quedanItemsPorSubastar };
+module.exports = { cantidadPiezasDeSubasta, piezaEnSubasta, quedanItemsPorSubastar, tomarPujaSiVigente };

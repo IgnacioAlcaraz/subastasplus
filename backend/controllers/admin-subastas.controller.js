@@ -242,13 +242,14 @@ async function ejecutarCierreItem(subastaId, itemId) {
   const estadoItem = await ItemsCatalogoEstado.findOne({ item: itemId });
   if (!estadoItem || estadoItem.estado !== "en_subasta") return;
 
-  const { data: ganadores } = await supabase
+  // El ganador es la puja de mayor importe: cada puja superó a la mejor oferta vigente al
+  // insertarse, así que el importe es la fuente de verdad (no el flag, que puede divergir).
+  const { data: pujas } = await supabase
     .from("pujos")
     .select("*")
     .eq("item", itemId)
-    .eq("ganador", "si")
     .order("importe", { ascending: false });
-  const pujoGanador = ganadores?.[0] || null;
+  const pujoGanador = pujas?.[0] || null;
 
   if (!pujoGanador) {
     const precioBase = Number(item.precio_base);
@@ -281,6 +282,14 @@ async function ejecutarCierreItem(subastaId, itemId) {
     }
     return { vendida: true, ganador: null, compraEmpresa: true, monto: precioBase };
   }
+
+  // Reconciliar el flag ganador con el resultado real (por si una carrera lo dejó inconsistente).
+  await supabase
+    .from("pujos")
+    .update({ ganador: "no" })
+    .eq("item", itemId)
+    .neq("identificador", pujoGanador.identificador);
+  await supabase.from("pujos").update({ ganador: "si" }).eq("identificador", pujoGanador.identificador);
 
   const asistente = await Asistentes.findById(pujoGanador.asistente);
   if (!asistente) throw new Error("No se encontró el asistente del postor ganador.");
