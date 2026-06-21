@@ -242,12 +242,13 @@ async function ejecutarCierreItem(subastaId, itemId) {
   const estadoItem = await ItemsCatalogoEstado.findOne({ item: itemId });
   if (!estadoItem || estadoItem.estado !== "en_subasta") return;
 
-  const { data: pujoGanador } = await supabase
+  const { data: ganadores } = await supabase
     .from("pujos")
     .select("*")
     .eq("item", itemId)
     .eq("ganador", "si")
-    .maybeSingle();
+    .order("importe", { ascending: false });
+  const pujoGanador = ganadores?.[0] || null;
 
   if (!pujoGanador) {
     const precioBase = Number(item.precio_base);

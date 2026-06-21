@@ -510,7 +510,9 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
   }
 
   const valorBase = Number(piezaCur.item.precio_base);
-  const mejorOferta = Number(piezaCur.estado.mejor_oferta || piezaCur.item.precio_base);
+  const mejorOfertaRaw = piezaCur.estado.mejor_oferta;
+  const habiaOferta = mejorOfertaRaw != null;
+  const mejorOferta = Number(mejorOfertaRaw || piezaCur.item.precio_base);
   const pujaMinima = Number((mejorOferta + valorBase * 0.01).toFixed(2));
   const pujaMaxima = pujaSinMaximo(cliente.categoria)
     ? null
@@ -531,6 +533,19 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
       `El monto supera el máximo permitido de ${pujaMaxima}.`,
       { montoOfertado: monto, montoMaximo: pujaMaxima },
     );
+  }
+
+  // Compuerta de concurrencia: solo gana quien actualiza mejor_oferta desde el valor que leyó.
+  // Un UPDATE de fila es atómico, así que dos pujas simultáneas se serializan y solo una pasa.
+  const expiryAt = new Date(Date.now() + DURACION_PUJA_MS).toISOString();
+  let gate = supabase
+    .from("items_catalogo_estado")
+    .update({ mejor_oferta: monto, expiry_at: expiryAt })
+    .eq("identificador", piezaCur.item.identificador);
+  gate = habiaOferta ? gate.eq("mejor_oferta", mejorOfertaRaw) : gate.is("mejor_oferta", null);
+  const { data: ganada } = await gate.select();
+  if (!ganada || ganada.length === 0) {
+    throw new HttpError(409, "PUJA_SUPERADA", "Alguien pujó antes que vos. Volvé a ofertar.");
   }
 
   // Notificar al postor cuya puja va a ser superada
@@ -570,9 +585,7 @@ exports.realizarPuja = asyncHandler(async (req, res) => {
   const timestamp = new Date().toISOString();
   await PujosExtension.create({ pujo: pujo.identificador, timestamp });
 
-  // Resetear timer y actualizar mejor_oferta + expiry_at
-  const expiryAt = new Date(Date.now() + DURACION_PUJA_MS).toISOString();
-  await ItemsCatalogoEstado.update(piezaCur.item.identificador, { mejor_oferta: monto, expiry_at: expiryAt });
+  // Resetear timer (mejor_oferta y expiry_at ya quedaron seteados por la compuerta)
   itemTimer.set(piezaCur.item.identificador, subastaId, expiryAt, ejecutarCierreItem);
 
   // Broadcast a la sala
