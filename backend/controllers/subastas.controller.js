@@ -390,18 +390,16 @@ exports.ingresarSala = asyncHandler(async (req, res) => {
   for (const a of misAsistencias || []) {
     if (a.subasta === subastaId) continue;
     const extOtra = await AsistentesExtension.findOne({ asistente: a.identificador });
-    if (extOtra?.estado_conexion === "conectado") {
-      const otra = await Subastas.findById(a.subasta);
-      const otraExt = otra
-        ? await SubastasExtension.findOne({ subasta: otra.identificador })
-        : null;
-      throw new HttpError(
-        403,
-        "SALA_YA_CONECTADO",
-        "Ya estás conectado a otra subasta en vivo. Salí de la actual antes de entrar a otra.",
-        { subastaActualTitulo: otra ? tituloSubasta(otra, otraExt) : null },
-      );
-    }
+    if (extOtra?.estado_conexion !== "conectado") continue;
+    const otra = await Subastas.findById(a.subasta);
+    if (otra?.estado !== "abierta") continue; // flag obsoleto de una subasta ya cerrada
+    const otraExt = await SubastasExtension.findOne({ subasta: otra.identificador });
+    throw new HttpError(
+      403,
+      "SALA_YA_CONECTADO",
+      "Ya estás conectado a otra subasta en vivo. Salí de la actual antes de entrar a otra.",
+      { subastaActualTitulo: tituloSubasta(otra, otraExt) },
+    );
   }
 
   // 4) Buscar o crear asistente para esta subasta

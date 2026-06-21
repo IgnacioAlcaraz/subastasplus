@@ -84,12 +84,14 @@ export default function SalaScreen({ navigation, route }) {
 
   // ref para saber si la pieza actual tiene máximo — evita que el closure del WS quede congelado
   const sinMaximoRef = useRef(salaInicial.piezaActual?.pujaMaxima === null);
+  const miUltimoPujoIdRef = useRef(null);
   const uiStateRef = useRef(uiState);
   useEffect(() => {
     uiStateRef.current = uiState;
   }, [uiState]);
 
   const wsClosedManuallyRef = useRef(false);
+  const wsRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   const reconnectAttemptsRef = useRef(0);
   const MAX_RECONNECT = 5;
@@ -104,6 +106,7 @@ export default function SalaScreen({ navigation, route }) {
         SERVER_URL.replace(/^http/, "ws") +
         `/v1/realtime/subastas/${subastaId}?token=${token}`;
       const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
       ws.onopen = () => {
         setWsConectado(true);
@@ -136,7 +139,8 @@ export default function SalaScreen({ navigation, route }) {
               };
             });
             if (msg.expiryAt) setExpiryAt(msg.expiryAt);
-            if (uiStateRef.current === "registrada") {
+            const esMiPuja = msg.pujo?.id && msg.pujo.id === miUltimoPujoIdRef.current;
+            if (uiStateRef.current === "registrada" && !esMiPuja) {
               setMejorNueva(msg.mejorOferta);
               setUiState("superada");
             }
@@ -169,9 +173,11 @@ export default function SalaScreen({ navigation, route }) {
             }
           }
           if (msg.event === "subasta_cerrada") {
+            setVerFotos(false);
             setUiState((cur) => (cur === "ganador" ? cur : "subastaCerrada"));
           }
           if (msg.event === "pieza_cerrada") {
+            setVerFotos(false);
             if (msg.ganadorClienteId && String(msg.ganadorClienteId) === user?.id) {
               setPiezaGanada({ numeroItem: msg.numeroItem, montoGanador: msg.montoGanador });
               setCompraId(msg.compraId);
@@ -201,6 +207,7 @@ export default function SalaScreen({ navigation, route }) {
     return () => {
       wsClosedManuallyRef.current = true;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (wsRef.current) wsRef.current.close();
     };
   }, [subastaId, token]);
 
@@ -225,7 +232,8 @@ export default function SalaScreen({ navigation, route }) {
     const montoNum = parseFloat(String(monto).replace(",", "."));
     setUiState("procesando");
     try {
-      await realizarPuja(subastaId, montoNum);
+      const res = await realizarPuja(subastaId, montoNum);
+      miUltimoPujoIdRef.current = res?.id ?? null;
       setMiUltimaMonto(montoNum);
       setUiState("registrada");
       setTimeout(() => {
@@ -393,115 +401,143 @@ export default function SalaScreen({ navigation, route }) {
         </KeyboardAvoidingView>
       )}
 
-      <Modal visible={uiState === "confirmar"} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitulo}>Confirmar puja</Text>
-            <View style={styles.modalInfo}>
-              <Text style={styles.modalPieza}>
-                Pieza #{pieza ? String(pieza.numeroItem).padStart(3, "0") : "-"}
-              </Text>
-              <Text style={styles.modalMonto}>
-                {formatMonto(monto || 0, moneda)}
-              </Text>
+      {/* Un solo Modal para todos los overlays de uiState: imposible que se superpongan */}
+      <Modal visible={uiState !== "sala"} transparent animationType="fade">
+        {uiState === "confirmar" && (
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitulo}>Confirmar puja</Text>
+              <View style={styles.modalInfo}>
+                <Text style={styles.modalPieza}>
+                  Pieza #{pieza ? String(pieza.numeroItem).padStart(3, "0") : "-"}
+                </Text>
+                <Text style={styles.modalMonto}>
+                  {formatMonto(monto || 0, moneda)}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalBotonPrimario}
+                onPress={handleConfirmar}
+              >
+                <Text style={styles.modalBotonTexto}>Confirmar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalBotonSecundario}
+                onPress={() => setUiState("sala")}
+              >
+                <Text style={styles.modalBotonSecTexto}>Cancelar</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              style={styles.modalBotonPrimario}
-              onPress={handleConfirmar}
-            >
-              <Text style={styles.modalBotonTexto}>Confirmar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalBotonSecundario}
-              onPress={() => setUiState("sala")}
-            >
-              <Text style={styles.modalBotonSecTexto}>Cancelar</Text>
-            </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
+        )}
 
-      <Modal visible={uiState === "procesando"} transparent animationType="fade">
-        <View style={styles.overlayOscuro}>
-          <View style={styles.overlayCirculo}>
-            <Text style={styles.overlayPuntos}>···</Text>
+        {uiState === "procesando" && (
+          <View style={styles.overlayOscuro}>
+            <View style={styles.overlayCirculo}>
+              <Text style={styles.overlayPuntos}>···</Text>
+            </View>
+            <Text style={styles.overlayTexto}>Procesando tu puja</Text>
           </View>
-          <Text style={styles.overlayTexto}>Procesando tu puja</Text>
-        </View>
-      </Modal>
+        )}
 
-      <Modal visible={uiState === "registrada"} transparent animationType="fade">
-        <View style={styles.overlayOscuro}>
-          <View style={styles.overlayCirculo}>
-            <Text style={styles.overlayOK}>OK</Text>
+        {uiState === "registrada" && (
+          <View style={styles.overlayOscuro}>
+            <View style={styles.overlayCirculo}>
+              <Text style={styles.overlayOK}>OK</Text>
+            </View>
+            <Text style={styles.overlayTitulo}>¡Puja registrada!</Text>
+            <Text style={styles.overlaySubtitulo}>
+              {miUltimaMonto ? formatMonto(miUltimaMonto, moneda) : ""}
+            </Text>
           </View>
-          <Text style={styles.overlayTitulo}>¡Puja registrada!</Text>
-          <Text style={styles.overlaySubtitulo}>
-            {miUltimaMonto ? formatMonto(miUltimaMonto, moneda) : ""}
-          </Text>
-        </View>
-      </Modal>
+        )}
 
-      <Modal visible={uiState === "superada"} transparent animationType="fade">
-        <View style={styles.overlayOscuro}>
-          <View style={styles.superadaCard}>
-            <Text style={styles.superadaTitulo}>Tu puja fue superada</Text>
-            {mejorNueva && (
-              <Text style={styles.superadaNueva}>
-                Nueva mejor: {formatMonto(mejorNueva, moneda)}
+        {uiState === "superada" && (
+          <View style={styles.overlayOscuro}>
+            <View style={styles.superadaCard}>
+              <Text style={styles.superadaTitulo}>Tu puja fue superada</Text>
+              {mejorNueva && (
+                <Text style={styles.superadaNueva}>
+                  Nueva mejor: {formatMonto(mejorNueva, moneda)}
+                </Text>
+              )}
+              {miUltimaMonto && (
+                <Text style={styles.superadaMia}>
+                  Tu oferta: {formatMonto(miUltimaMonto, moneda)}
+                </Text>
+              )}
+              <TouchableOpacity
+                style={styles.superadaBoton}
+                onPress={() => {
+                  const nuevaMinima = pieza
+                    ? Number((mejorNueva + pieza.precioBase * 0.01).toFixed(2))
+                    : monto;
+                  setMonto(String(nuevaMinima));
+                  setMejorNueva(null);
+                  setMiUltimaMonto(null);
+                  setUiState("sala");
+                }}
+              >
+                <Text style={styles.superadaBotonTexto}>Hacer nueva puja</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {uiState === "perdedor" && (
+          <View style={styles.perdedorOverlay}>
+            <Text style={styles.perdedorX}>✕</Text>
+            <Text style={styles.perdedorTitulo}>Pieza adjudicada a otro</Text>
+            {montoGanadorAjeno && (
+              <Text style={styles.perdedorSubtitulo}>
+                Ganador: {formatMonto(montoGanadorAjeno, moneda)}
               </Text>
             )}
-            {miUltimaMonto && (
-              <Text style={styles.superadaMia}>
-                Tu oferta: {formatMonto(miUltimaMonto, moneda)}
-              </Text>
-            )}
+            <TouchableOpacity style={styles.perdedorBoton} onPress={handleSalir}>
+              <Text style={styles.perdedorBotonTexto}>Salir</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {uiState === "subastaCerrada" && (
+          <View style={styles.overlayOscuro}>
+            <Text style={styles.overlayTitulo}>La subasta finalizó</Text>
+            <Text style={styles.overlayTexto}>Gracias por participar</Text>
             <TouchableOpacity
-              style={styles.superadaBoton}
+              style={[styles.ganadorBoton, { marginTop: 24 }]}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.ganadorBotonTexto}>Volver</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {uiState === "ganador" && (
+          <View style={styles.overlayOscuro}>
+            <View style={styles.overlayCirculo}>
+              <Text style={styles.overlayExclamacion}>!!</Text>
+            </View>
+            <Text style={styles.overlayTitulo}>¡Felicitaciones!</Text>
+            <Text style={styles.overlayTexto}>
+              Ganaste la pieza #{piezaGanada ? String(piezaGanada.numeroItem).padStart(3, "0") : ""}
+            </Text>
+            <Text style={[styles.overlayTitulo, { fontWeight: "700" }]}>
+              {piezaGanada ? formatMonto(piezaGanada.montoGanador, moneda) : ""}
+            </Text>
+            <TouchableOpacity
+              style={styles.ganadorBoton}
               onPress={() => {
-                const nuevaMinima = pieza
-                  ? Number((mejorNueva + pieza.precioBase * 0.01).toFixed(2))
-                  : monto;
-                setMonto(String(nuevaMinima));
-                setMejorNueva(null);
-                setMiUltimaMonto(null);
-                setUiState("sala");
+                navigation.replace("FacturaCompra", {
+                  compraId,
+                  moneda,
+                  numeroItem: piezaGanada?.numeroItem,
+                });
               }}
             >
-              <Text style={styles.superadaBotonTexto}>Hacer nueva puja</Text>
+              <Text style={styles.ganadorBotonTexto}>Proceder al pago</Text>
             </TouchableOpacity>
           </View>
-        </View>
-      </Modal>
-
-      {/* ── Overlay: Perdedor ── */}
-      <Modal visible={uiState === "perdedor"} transparent animationType="fade">
-        <View style={styles.perdedorOverlay}>
-          <Text style={styles.perdedorX}>✕</Text>
-          <Text style={styles.perdedorTitulo}>Pieza adjudicada a otro</Text>
-          {montoGanadorAjeno && (
-            <Text style={styles.perdedorSubtitulo}>
-              Ganador: {formatMonto(montoGanadorAjeno, moneda)}
-            </Text>
-          )}
-          <TouchableOpacity style={styles.perdedorBoton} onPress={handleSalir}>
-            <Text style={styles.perdedorBotonTexto}>Salir</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      {/* ── Overlay: Subasta cerrada ── */}
-      <Modal visible={uiState === "subastaCerrada"} transparent animationType="fade">
-        <View style={styles.overlayOscuro}>
-          <Text style={styles.overlayTitulo}>La subasta finalizó</Text>
-          <Text style={styles.overlayTexto}>Gracias por participar</Text>
-          <TouchableOpacity
-            style={[styles.ganadorBoton, { marginTop: 24 }]}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.ganadorBotonTexto}>Volver</Text>
-          </TouchableOpacity>
-        </View>
+        )}
       </Modal>
 
       {/* ── Visor de fotos ── */}
@@ -551,34 +587,6 @@ export default function SalaScreen({ navigation, route }) {
         </View>
       </Modal>
 
-      {/* ── Overlay: Ganador ── */}
-      <Modal visible={uiState === "ganador"} transparent animationType="fade">
-        <View style={styles.overlayOscuro}>
-          <View style={styles.overlayCirculo}>
-            <Text style={styles.overlayExclamacion}>!!</Text>
-          </View>
-          <Text style={styles.overlayTitulo}>¡Felicitaciones!</Text>
-          <Text style={styles.overlayTexto}>
-            Ganaste la pieza #{piezaGanada ? String(piezaGanada.numeroItem).padStart(3, "0") : ""}
-          </Text>
-          <Text style={[styles.overlayTitulo, { fontWeight: "700" }]}>
-            {piezaGanada ? formatMonto(piezaGanada.montoGanador, moneda) : ""}
-          </Text>
-          <TouchableOpacity
-            style={styles.ganadorBoton}
-            onPress={() => {
-              setUiState("sala");
-              navigation.navigate("FacturaCompra", {
-                compraId,
-                moneda,
-                numeroItem: piezaGanada?.numeroItem,
-              });
-            }}
-          >
-            <Text style={styles.ganadorBotonTexto}>Proceder al pago</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

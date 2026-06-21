@@ -294,6 +294,9 @@ async function ejecutarCierreItem(subastaId, itemId) {
   const asistente = await Asistentes.findById(pujoGanador.asistente);
   if (!asistente) throw new Error("No se encontró el asistente del postor ganador.");
 
+  // El ganador sale de la subasta y pasa al flujo de pago: lo desconectamos para que pueda entrar a otra.
+  await AsistentesExtension.update(asistente.identificador, { estado_conexion: "desconectado" });
+
   const clienteGanadorId = asistente.cliente;
   const montoGanador = Number(pujoGanador.importe);
   const comision = Math.round(montoGanador * 0.1);
@@ -328,8 +331,7 @@ async function ejecutarCierreItem(subastaId, itemId) {
   });
 
   if (!(await quedanItemsPorSubastar(subastaId))) {
-    await Subastas.update(subastaId, { estado: "cerrada" });
-    realtime.broadcast(subastaId, { event: "subasta_cerrada", subastaId: String(subastaId) });
+    await cerrarSubastaCompleta(subastaId);
   }
 
   return {
