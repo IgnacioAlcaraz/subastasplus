@@ -1,10 +1,12 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { notifyTokensRefreshed, notifySessionExpired } from '../navigation/sessionEvents';
 
 // sacamos la IP del host de Expo para conectar al backend en la misma red local
-const BASE_URL = 'https://subastasplus-backend.onrender.com/v1';
-export const SERVER_URL = 'https://subastasplus-backend.onrender.com';
+const devHost = Constants.expoConfig?.hostUri?.split(':')[0] ?? 'localhost';
+const BASE_URL = `http://${devHost}:3000/v1`;
+export const SERVER_URL = `http://${devHost}:3000`;
 
 const client = axios.create({
   baseURL: BASE_URL,
